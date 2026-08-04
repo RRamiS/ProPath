@@ -1,0 +1,76 @@
+import type { CareerState, ContentPack, PlayerProfile, Stats } from './types';
+import { getDuration } from './types';
+
+function clampStat(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function mergeStats(base: Stats, ...partials: Array<Partial<Stats> | undefined>): Stats {
+  const out: Stats = { ...base };
+  for (const p of partials) {
+    if (!p) continue;
+    for (const [k, v] of Object.entries(p)) {
+      if (typeof v === 'number') {
+        out[k] = clampStat((out[k] ?? 0) + v);
+      }
+    }
+  }
+  return out;
+}
+
+export function nextRng(seed: number): { value: number; seed: number } {
+  const seed2 = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+  return { value: seed2 / 0xffffffff, seed: seed2 };
+}
+
+export function createCareer(
+  pack: ContentPack,
+  profile: PlayerProfile,
+  seed = Date.now() >>> 0
+): CareerState {
+  const nation = pack.nations.find((n) => n.id === profile.nationId);
+  const role = pack.roles.find((r) => r.id === profile.roleId);
+  if (!nation) throw new Error(`Nation not found: ${profile.nationId}`);
+  if (!role) throw new Error(`Role not found: ${profile.roleId}`);
+
+  const stages = [...pack.stages].sort((a, b) => a.order - b.order);
+  const firstStage = stages[0];
+  if (!firstStage) throw new Error('Content pack has no stages');
+
+  const duration = getDuration(profile.durationId);
+  const stats = mergeStats(pack.baseStats, nation.startingStats, role.startingStats);
+
+  return {
+    packId: pack.id,
+    profile: {
+      ...profile,
+      name: profile.name.trim() || 'Prodigy',
+      durationId: duration.id,
+    },
+    stats,
+    flags: {
+      ...nation.startingFlags,
+      role: role.id,
+      nation: nation.id,
+      duration: duration.id,
+    },
+    stageId: firstStage.id,
+    turn: 0,
+    maxTurns: duration.maxTurns,
+    durationId: duration.id,
+    history: [],
+    currentEventId: null,
+    endingId: null,
+    rngSeed: seed,
+    lastNotice: null,
+  };
+}
+
+export function applyStatDelta(stats: Stats, delta?: Partial<Stats>): Stats {
+  if (!delta) return stats;
+  const out = { ...stats };
+  for (const [k, v] of Object.entries(delta)) {
+    if (typeof v === 'number') out[k] = clampStat((out[k] ?? 0) + v);
+  }
+  return out;
+}
