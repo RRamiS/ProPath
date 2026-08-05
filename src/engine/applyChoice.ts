@@ -1,5 +1,5 @@
 import { applyStatDelta, nextRng } from './createCareer';
-import { maybePromote, resolveEnding } from './progression';
+import { maybePromote } from './progression';
 import { applyRelations } from './week';
 import type { CareerState, ContentPack, GameEvent, Relations } from './types';
 
@@ -125,8 +125,12 @@ export function applyChoice(
     next = maybePromote(next);
   }
 
-  if (!next.endingId && next.turn >= next.maxTurns) {
-    next = { ...next, endingId: resolveEnding(next) };
+  // Sync cash when events grant money stat
+  if (choice.effect.stats?.money) {
+    next = {
+      ...next,
+      cash: Math.max(0, next.cash + Math.round(choice.effect.stats.money * 8)),
+    };
   }
 
   return next;

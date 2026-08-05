@@ -4,3 +4,7 @@ export * from './applyChoice';
 export * from './progression';
 export * from './week';
 export * from './objectives';
+export * from './relations';
+export * from './economy';
+export * from './season';
+export * from './venues';

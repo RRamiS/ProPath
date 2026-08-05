@@ -18,23 +18,23 @@ export const RUN_DURATIONS: RunDuration[] = [
   {
     id: 'sprint',
     label: 'Rápida',
-    blurb: 'Una temporada condensada. Ideal para probar builds.',
+    blurb: 'Temporadas cortas (12 sem). Ideal para probar el loop.',
     maxTurns: 12,
-    minutesHint: '~8–12 min',
+    minutesHint: '~8–12 min / temp.',
   },
   {
     id: 'season',
     label: 'Estándar',
-    blurb: 'El arco completo: ranked → academy → escena seria.',
+    blurb: 'Splits de 20 semanas. La carrera sigue si querés.',
     maxTurns: 20,
-    minutesHint: '~15–22 min',
+    minutesHint: '~15–22 min / temp.',
   },
   {
     id: 'epic',
     label: 'Épica',
-    blurb: 'Carrera larga con más drama, visas y metas internacionales.',
+    blurb: 'Splits largos (32 sem). Edad, plata y legado pesan más.',
     maxTurns: 32,
-    minutesHint: '~25–40 min',
+    minutesHint: '~25–40 min / temp.',
   },
 ];
 
@@ -172,7 +172,13 @@ export interface MatchResult {
   factors: MatchFactor[];
 }
 
-export type CareerPhase = 'hub' | 'event' | 'match';
+export type CareerPhase = 'hub' | 'event' | 'match' | 'seasonBreak';
+
+/** La semana se juega en dos bloques: lo que hacés de día y lo que hacés de noche. */
+export type Daypart = 'day' | 'night';
+
+/** Sedes del mapa: cada una abre una habitación distinta. */
+export type VenueId = 'home' | 'gym' | 'cafe' | 'academy' | 'arena';
 
 export interface CareerState {
   packId: string;
@@ -180,7 +186,9 @@ export interface CareerState {
   stats: Stats;
   flags: Flags;
   stageId: string;
+  /** Semanas totales de carrera (no corta el juego). */
   turn: number;
+  /** Semanas por temporada (antes era el hard-end). */
   maxTurns: number;
   durationId: RunDurationId;
   history: string[];
@@ -199,6 +207,23 @@ export interface CareerState {
   ticker: string[];
   wins: number;
   losses: number;
+  daypart: Daypart;
   /** Objetivos de temporada ya cobrados */
   claimedObjectives: string[];
+  /** Edad del jugador (años). */
+  ageYears: number;
+  /** Temporada actual (1-based). */
+  season: number;
+  /** Semana dentro de la temporada (0 .. maxTurns-1). */
+  weekInSeason: number;
+  /** Billetera real: no se clampea a 100. */
+  cash: number;
+  /** Ítems de setup comprados. */
+  ownedItems: string[];
+  /** Sede actual en el city strip. */
+  venueId: VenueId;
+  /** Wins de la temporada en curso (para el resumen). */
+  seasonWins: number;
+  /** Losses de la temporada en curso. */
+  seasonLosses: number;
 }

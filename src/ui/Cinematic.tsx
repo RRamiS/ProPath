@@ -31,8 +31,9 @@ const VIBE: Record<CinematicPayload['vibe'], { label: string; tone: Tone }> = {
   kickoff: { label: 'NUEVA CARRERA', tone: 'accent' },
   promote: { label: 'PROMOCIÓN', tone: 'gold' },
   skill: { label: 'SKILL CHECK', tone: 'violet' },
-  ending: { label: 'FINAL DE TEMPORADA', tone: 'gold' },
+  ending: { label: 'LEGACY', tone: 'danger' },
   match: { label: 'MATCH DAY', tone: 'danger' },
+  season: { label: 'FIN DE SPLIT', tone: 'gold' },
 };
 
 export function CinematicOverlay() {

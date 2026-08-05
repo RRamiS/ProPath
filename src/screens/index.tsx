@@ -472,8 +472,15 @@ export function EndingScreen() {
               </View>
             </PopIn>
 
-            <Text style={styles.endingTitle}>{ending?.title ?? 'Fin'}</Text>
+            <Text style={styles.endingTitle}>{ending?.title ?? 'Retiro'}</Text>
             <Body style={styles.endingBody}>{ending?.body}</Body>
+
+            {career ? (
+              <Text style={styles.legacyMeta}>
+                {career.ageYears} años · {career.season} temp. · ${career.cash} ·{' '}
+                {career.wins}V–{career.losses}D
+              </Text>
+            ) : null}
 
             {career ? <ShareCard career={career} pack={pack} ending={ending} /> : null}
             <Text style={styles.micro}>Sacale screenshot a la tarjeta para compartirla</Text>
@@ -780,5 +787,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   endingBody: { maxWidth: 440 },
+  legacyMeta: {
+    color: colors.gold,
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
+    marginBottom: 12,
+  },
   endingCta: { marginTop: space.md },
 });

@@ -1,4 +1,6 @@
 import { applyStatDelta, nextRng } from '../engine/createCareer';
+import { relationBonuses } from '../engine/relations';
+import { agePressure } from '../engine/season';
 import type { CareerState, MatchFactor, MatchResult, Relations } from '../engine/types';
 
 export type MatchPhase = 'draft' | 'early' | 'fight' | 'late';
@@ -143,14 +145,21 @@ export function resolveMatch(
   add('Mecánicas', (state.stats.mechanics ?? 0) / 200);
   add('Teamplay', (state.stats.teamwork ?? 0) / 220);
 
+  const perks = relationBonuses(state);
+  const age = agePressure(state.ageYears);
+  if (perks.draftEdge) add('Perk · Plan de partido', perks.draftEdge);
+  if (perks.fightEdge) add('Perk · Sinergia de lane', perks.fightEdge);
+  if (age.matchPenalty) add('Edad / veterano', -age.matchPenalty);
+
   let callsValue = 0;
   choices.forEach((cid, i) => {
     const beat = beats[i];
     const choice = beat?.choices.find((c) => c.id === cid);
     if (!choice) return;
-    // Con 4 fases, si cada llamada pesa mucho el resto del juego no importa.
-    callsValue += choice.momentum * 0.42;
-    if (choice.formBonus) callsValue += choice.formBonus * 0.06;
+    // Centrado en momentum 1: la llamada estándar no regala nada. Jugar seguro
+    // resta, arriesgar bien suma, y la carrera sigue pesando más que 4 clics.
+    callsValue += (choice.momentum - 1) * 0.3;
+    if (choice.formBonus) callsValue += choice.formBonus * 0.05;
     if (i === 0 && cid === 'prio') highlights.push('Early prio en draft');
     if (i === 1 && cid === 'playmake') highlights.push('First blood attempt');
     if (i === 2 && cid === 'focus') highlights.push('Foco limpio al carry');
@@ -169,8 +178,8 @@ export function resolveMatch(
           ? 0.2
           : 0;
   // Los rivales también progresan: la temporada se endurece sola.
-  const seasonPressure = (state.turn / Math.max(1, state.maxTurns)) * 0.6;
-  add('Nivel del rival', -(0.25 + stagePenalty + seasonPressure));
+  const seasonPressure = (state.turn / Math.max(1, state.maxTurns)) * 0.4;
+  add('Nivel del rival', -(0.4 + stagePenalty + seasonPressure));
 
   if (state.relations.rival >= 55) add('El rival te estudió', -0.3);
   if (state.form < 40) add('Fuera de ritmo', -0.35);
@@ -206,7 +215,7 @@ export function resolveMatch(
   };
 
   let stats = applyStatDelta(state.stats, {
-    reputation: won ? (mvp ? 10 : 6) : -3,
+    reputation: won ? (mvp ? 10 : 6) + perks.repEdge : -3,
     mentality: won ? 4 : -5,
     mechanics: mvp ? 3 : 1,
     teamwork: won ? 3 : -1,
@@ -220,23 +229,28 @@ export function resolveMatch(
     manager: clampRel(state.relations.manager + (won && mvp ? 4 : won ? 2 : 0)),
   };
 
+  const prize = won ? (mvp ? 55 : 35) : 8;
   const next: CareerState = {
     ...state,
     stats,
     relations,
-    form: clampRel(state.form + (won ? 6 : -4)),
-    fatigue: clampRel(state.fatigue + 12),
+    cash: state.cash + prize,
+    form: clampRel(state.form + (won ? 5 + perks.winSurge : -3 + perks.lossCushion)),
+    fatigue: clampRel(state.fatigue + 9 + age.matchFatigue),
     lastMatch: result,
     wins: state.wins + (won ? 1 : 0),
     losses: state.losses + (won ? 0 : 1),
+    seasonWins: state.seasonWins + (won ? 1 : 0),
+    seasonLosses: state.seasonLosses + (won ? 0 : 1),
     rngSeed: seed,
     lastNotice: won
       ? mvp
-        ? `MVP vs ${opponent}. El timeline explotó.`
-        : `Win vs ${opponent}. ${result.scoreLine}`
-      : `Loss vs ${opponent}. VOD duele.`,
+        ? `MVP vs ${opponent}. +$${prize}`
+        : `Win vs ${opponent}. ${result.scoreLine} · +$${prize}`
+      : `Loss vs ${opponent}. VOD duele. +$${prize}`,
     ticker: [
       won ? `W vs ${opponent}` : `L vs ${opponent}`,
+      `+$${prize}`,
       `${result.kills}/${result.deaths}/${result.assists}`,
       ...result.highlights,
     ],

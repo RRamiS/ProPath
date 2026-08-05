@@ -11,6 +11,9 @@ import {
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CreateScreen, EndingScreen, HomeScreen, PlayScreen } from './src/screens';
 import { WeekHubScreen } from './src/screens/WeekHub';
+import { ShopScreen } from './src/screens/ShopScreen';
+import { CityScreen } from './src/screens/CityScreen';
+import { SeasonBreakScreen } from './src/screens/SeasonBreakScreen';
 import { LiveMatchScreen } from './src/match/LiveMatch';
 import { MinigameScreen } from './src/minigames/MinigameScreen';
 import { CinematicOverlay } from './src/ui/Cinematic';
@@ -26,6 +29,9 @@ function ActiveScreen() {
   if (screen === 'match') return <LiveMatchScreen />;
   if (screen === 'minigame') return <MinigameScreen />;
   if (screen === 'ending') return <EndingScreen />;
+  if (screen === 'shop') return <ShopScreen />;
+  if (screen === 'city') return <CityScreen />;
+  if (screen === 'seasonBreak') return <SeasonBreakScreen />;
   return <HomeScreen />;
 }
 

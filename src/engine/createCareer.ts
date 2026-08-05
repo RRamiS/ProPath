@@ -1,6 +1,7 @@
 import type { CareerState, ContentPack, PlayerProfile, Stats } from './types';
 import { getDuration } from './types';
 import { DEFAULT_RELATIONS } from '../content/esports/roster';
+import { START_AGE } from './season';
 
 function clampStat(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
@@ -12,7 +13,10 @@ function mergeStats(base: Stats, ...partials: Array<Partial<Stats> | undefined>)
     if (!p) continue;
     for (const [k, v] of Object.entries(p)) {
       if (typeof v === 'number') {
-        out[k] = clampStat((out[k] ?? 0) + v);
+        out[k] =
+          k === 'money'
+            ? Math.max(0, Math.round((out[k] ?? 0) + v))
+            : clampStat((out[k] ?? 0) + v);
       }
     }
   }
@@ -40,6 +44,7 @@ export function createCareer(
 
   const duration = getDuration(profile.durationId);
   const stats = mergeStats(pack.baseStats, nation.startingStats, role.startingStats);
+  const startCash = 40 + Math.round((stats.money ?? 0) * 0.8);
 
   return {
     packId: pack.id,
@@ -78,14 +83,19 @@ export function createCareer(
     ],
     wins: 0,
     losses: 0,
+    daypart: 'day',
     claimedObjectives: [],
+    ageYears: START_AGE,
+    season: 1,
+    weekInSeason: 0,
+    cash: startCash,
+    ownedItems: [],
+    venueId: 'home',
+    seasonWins: 0,
+    seasonLosses: 0,
   };
 }
 
-/**
- * Rendimientos decrecientes: subir de 30 a 40 es una semana, de 85 a 95 es un
- * mes. Sin esto toda carrera larga termina con todo en 100.
- */
 function growthFactor(current: number): number {
   const t = Math.max(0, Math.min(1, current / 100));
   return Math.max(0.18, 1 - Math.pow(t, 1.9) * 0.86);
@@ -97,8 +107,11 @@ export function applyStatDelta(stats: Stats, delta?: Partial<Stats>): Stats {
   for (const [k, v] of Object.entries(delta)) {
     if (typeof v !== 'number') continue;
     const current = out[k] ?? 0;
-    // Las pérdidas pegan completas; las ganancias se frenan cerca del techo.
-    const applied = v > 0 && k !== 'money' ? v * growthFactor(current) : v;
+    if (k === 'money') {
+      out[k] = Math.max(0, Math.round(current + v));
+      continue;
+    }
+    const applied = v > 0 ? v * growthFactor(current) : v;
     out[k] = clampStat(current + applied);
   }
   return out;

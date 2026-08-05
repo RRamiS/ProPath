@@ -1,10 +1,24 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { availableActivities, type WeekActivity } from '../engine/week';
 import { activeObjectives, objectiveProgress } from '../engine/objectives';
+import {
+  currentPerk,
+  nextPerk,
+  rankProgress,
+  relationRank,
+  MAX_RANK,
+  type RelationKey,
+} from '../engine/relations';
+import { activityImpact, getActivity, isMatchWeek } from '../engine/week';
 import type { CareerState, Relations } from '../engine/types';
 import { buildRoster } from '../content/esports/roster';
+import { ActionSheet } from '../room/ActionSheet';
+import { ROOM_NAMES } from '../room/layout';
+import { RoomScene, roomSlots, type RoomSlot } from '../room/RoomScene';
 import { useGameStore } from '../store/gameStore';
+import { agePressure } from '../engine/season';
+import { getVenue, npcLine } from '../engine/venues';
 import {
   Chip,
   IconBadge,
@@ -31,41 +45,55 @@ import {
   type Tone,
 } from '../ui/theme';
 
-const ACTIVITY_TONE: Record<string, Tone> = {
-  soloq: 'accent',
-  scrim: 'blue',
-  vod: 'violet',
-  rest: 'gold',
-  content: 'warn',
-  match: 'danger',
-};
+/**
+ * Planificador de la semana. Robado de los "dayparts" de Persona: dos bloques,
+ * dos decisiones, y ver el hueco vacío obliga a pensar antes de gastarlo.
+ */
+function DaypartStrip({ career, matchWeek }: { career: CareerState; matchWeek: boolean }) {
+  const night = career.daypart === 'night';
+  const doneLabel = night && career.lastActivity ? getActivity(career.lastActivity).label : null;
 
-type EffectChip = { label: string; tone: Tone };
+  const blocks = [
+    { id: 'day', label: 'DÍA', done: night, fill: doneLabel },
+    { id: 'night', label: 'NOCHE', done: false, fill: null },
+  ];
 
-function activityChips(
-  activity: WeekActivity,
-  statLabels: Record<string, string>
-): EffectChip[] {
-  const out: EffectChip[] = Object.entries(activity.stats)
-    .filter(([, v]) => typeof v === 'number' && v !== 0)
-    .sort((a, b) => Math.abs(b[1] as number) - Math.abs(a[1] as number))
-    .slice(0, 2)
-    .map(([id, v]) => ({
-      label: `${statLabels[id] ?? id} ${(v as number) > 0 ? '+' : '−'}${Math.abs(v as number)}`,
-      tone: (v as number) > 0 ? ('accent' as Tone) : ('danger' as Tone),
-    }));
+  return (
+    <View style={styles.plannerWrap}>
+      <View style={styles.dayparts}>
+        {blocks.map((b) => {
+          const active = (b.id === 'night') === night;
+          return (
+            <View
+              key={b.id}
+              style={[styles.dpBlock, active && styles.dpBlockActive, b.done && styles.dpBlockDone]}
+            >
+              <View style={styles.dpHead}>
+                <Text style={[styles.dpLabel, active && styles.dpLabelActive]}>{b.label}</Text>
+                {active ? <LiveDot /> : null}
+              </View>
+              <Text style={[styles.dpFill, b.done && styles.dpFillDone]} numberOfLines={1}>
+                {b.done ? (b.fill ?? 'Hecho') : active ? 'Elegí un objeto' : 'Pendiente'}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
 
-  if (activity.fatigue !== 0) {
-    out.push({
-      label: `Fatiga ${activity.fatigue > 0 ? '+' : '−'}${Math.abs(activity.fatigue)}`,
-      tone: activity.fatigue > 0 ? 'danger' : 'accent',
-    });
-  }
-
-  return out;
+      <View style={[styles.fixture, matchWeek && styles.fixtureLive]}>
+        <Text style={[styles.fixtureLabel, matchWeek && styles.fixtureLabelLive]}>
+          {matchWeek ? 'SERIE ESTA SEMANA' : 'SEMANA SIN SERIE'}
+        </Text>
+        <Text style={styles.fixtureHint} numberOfLines={1}>
+          {matchWeek
+            ? 'Si no salís por la puerta, igual se juega al cierre.'
+            : 'Ventana para construir: forma, cabeza y vínculos.'}
+        </Text>
+      </View>
+    </View>
+  );
 }
 
-/** Metas de sponsor: dan un “para qué” a la semana. */
 function ObjectivesPanel({ career }: { career: CareerState }) {
   const objectives = activeObjectives(career);
   if (objectives.length === 0) return null;
@@ -96,19 +124,25 @@ function ObjectivesPanel({ career }: { career: CareerState }) {
   );
 }
 
+/** Relación con rango y perk: el número solo no dice nada, el perk sí. */
 function RelationCard({
+  kind,
   name,
   role,
   value,
   tone,
 }: {
+  kind: RelationKey;
   name: string;
   role: string;
   value: number;
   tone: Tone;
 }) {
   const t = tones[tone];
-  const mood = value >= 70 ? 'Sólido' : value >= 45 ? 'Neutral' : 'Frío';
+  const rank = relationRank(value);
+  const perk = currentPerk(kind, value);
+  const next = nextPerk(kind, value);
+
   return (
     <View style={[styles.relCard, { borderColor: t.border }]}>
       <View style={[styles.relEdge, { backgroundColor: t.fg }]} />
@@ -124,12 +158,85 @@ function RelationCard({
             {role}
           </Text>
         </View>
-        <View style={styles.relScore}>
-          <Text style={[styles.relValue, { color: t.fg }]}>{value}</Text>
-          <Text style={styles.relMood}>{mood}</Text>
+        <View style={styles.rankPips}>
+          {Array.from({ length: MAX_RANK }, (_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.rankPip,
+                { backgroundColor: i < rank ? t.fg : 'rgba(235,240,248,0.12)' },
+              ]}
+            />
+          ))}
         </View>
       </View>
-      <Meter value={value} tone={tone} height={3} />
+
+      <Meter value={rankProgress(value)} tone={tone} height={3} />
+
+      <Text style={[styles.relPerk, { color: perk ? t.fg : colors.faint }]} numberOfLines={2}>
+        {perk ? `R${rank} · ${perk.label}` : 'Sin rango todavía'}
+      </Text>
+      <Text style={styles.relNext} numberOfLines={2}>
+        {next ? `+${next.missing} para ${next.perk.label}` : 'Rango máximo'}
+      </Text>
+    </View>
+  );
+}
+
+/** Vista lista: misma información, cero escenografía. Para ir rápido. */
+function ActivityList({
+  slots,
+  onPick,
+  statLabels,
+  career,
+}: {
+  slots: RoomSlot[];
+  onPick: (s: RoomSlot) => void;
+  statLabels: Record<string, string>;
+  career: CareerState;
+}) {
+  return (
+    <View style={styles.grid}>
+      {slots
+        .filter((s) => s.available)
+        .map((slot, i) => {
+          const impact = activityImpact(slot.activity, career.daypart);
+          return (
+            <FadeSlide key={slot.activity.id} delay={30 + i * 30} style={styles.gridItem}>
+              <PressCard onPress={() => onPick(slot)} tone={slot.tone} style={styles.activityCard}>
+                <View style={styles.activityHead}>
+                  <IconBadge name={slot.activity.id} tone={slot.tone} size={34} />
+                  <Text style={styles.activityLabel} numberOfLines={2}>
+                    {slot.activity.label}
+                  </Text>
+                </View>
+                <Text style={styles.activityBlurb} numberOfLines={3}>
+                  {slot.activity.blurb}
+                </Text>
+                <View style={styles.chipRow}>
+                  {Object.entries(impact.stats)
+                    .filter(([, v]) => typeof v === 'number' && v !== 0)
+                    .slice(0, 2)
+                    .map(([id, v]) => (
+                      <Chip
+                        key={id}
+                        label={`${statLabels[id] ?? id} ${(v as number) > 0 ? '+' : '−'}${Math.abs(
+                          v as number
+                        )}`}
+                        tone={(v as number) > 0 ? 'accent' : 'danger'}
+                      />
+                    ))}
+                  {impact.fatigue !== 0 ? (
+                    <Chip
+                      label={`Fatiga ${impact.fatigue > 0 ? '+' : '−'}${Math.abs(impact.fatigue)}`}
+                      tone={impact.fatigue > 0 ? 'danger' : 'accent'}
+                    />
+                  ) : null}
+                </View>
+              </PressCard>
+            </FadeSlide>
+          );
+        })}
     </View>
   );
 }
@@ -139,16 +246,33 @@ export function WeekHubScreen() {
   const career = useGameStore((s) => s.career);
   const pickActivity = useGameStore((s) => s.pickActivity);
   const reset = useGameStore((s) => s.reset);
+  const setScreen = useGameStore((s) => s.setScreen);
+  const talkToNpc = useGameStore((s) => s.talkToNpc);
+  const clearNpcTalk = useGameStore((s) => s.clearNpcTalk);
+  const npcTalk = useGameStore((s) => s.npcTalk);
+  const retireCareer = useGameStore((s) => s.retireCareer);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [listView, setListView] = useState(false);
+
+  const daypart = career?.daypart;
+  const turn = career?.turn;
+  const venueId = career?.venueId;
+  useEffect(() => {
+    setSelectedId(null);
+  }, [daypart, turn, venueId]);
 
   if (!career) return null;
 
-  const activities = availableActivities(career, pack);
-  const matchDay = activities.find((a) => a.id === 'match');
-  const training = activities.filter((a) => a.id !== 'match');
+  const slots = roomSlots(career, pack);
+  const selected = slots.find((s) => s.spec.id === selectedId) ?? null;
   const roster = buildRoster(career.profile.nationId, career.profile.roleId);
   const stageOrder = pack.stages.find((s) => s.id === career.stageId)?.order ?? 1;
+  const tired = career.fatigue >= 70;
+  const pressure = agePressure(career.ageYears);
+  const venue = getVenue(career.venueId);
 
-  const relationList: Array<{ key: keyof Relations; name: string; role: string; tone: Tone }> = [
+  const relationList: Array<{ key: RelationKey; name: string; role: string; tone: Tone }> = [
     { key: 'coach', name: roster.coach.name, role: roster.coach.role, tone: 'accent' },
     { key: 'duo', name: roster.duo.name, role: roster.duo.role, tone: 'blue' },
     { key: 'rival', name: roster.rival.name, role: roster.rival.role, tone: 'danger' },
@@ -162,7 +286,10 @@ export function WeekHubScreen() {
     });
   }
 
-  const tired = career.fatigue >= 70;
+  const commit = (slot: RoomSlot) => {
+    setSelectedId(null);
+    pickActivity(slot.activity.id);
+  };
 
   return (
     <View style={styles.root}>
@@ -173,12 +300,12 @@ export function WeekHubScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <FadeSlide key={`hub-${career.turn}`}>
+          <FadeSlide key={`hub-${career.turn}-${career.daypart}-${career.venueId}`}>
             <CareerHud career={career} pack={pack} onExit={reset} />
 
             {career.lastNotice ? (
               <Shutter>
-                <Panel tone="accent" glow label="Parte semanal" style={styles.block}>
+                <Panel tone="accent" glow label="Parte" style={styles.block}>
                   <Text style={styles.noticeText}>{career.lastNotice}</Text>
                 </Panel>
               </Shutter>
@@ -192,93 +319,127 @@ export function WeekHubScreen() {
               </Panel>
             ) : null}
 
+            {pressure.label ? (
+              <Panel tone={pressure.hard ? 'danger' : 'warn'} label="Edad" style={styles.block}>
+                <Text style={styles.warningText}>{pressure.label}</Text>
+              </Panel>
+            ) : null}
+
+            {npcTalk ? (
+              <Panel tone="blue" label="Conversación" style={styles.block}>
+                <Text style={styles.noticeText}>{npcTalk}</Text>
+                <Pressable onPress={clearNpcTalk} style={styles.dismissTalk}>
+                  <Text style={styles.dismissTalkText}>Cerrar</Text>
+                </Pressable>
+              </Panel>
+            ) : null}
+
+            <DaypartStrip career={career} matchWeek={isMatchWeek(career, pack)} />
+
+            <View style={styles.roomHead}>
+              <View style={styles.roomTitleWrap}>
+                <Text style={styles.roomEyebrow}>
+                  {career.daypart === 'night' ? 'NOCHE' : 'DÍA'} · {venue.label.toUpperCase()}
+                </Text>
+                <Text style={styles.roomTitle}>
+                  {career.venueId === 'home'
+                    ? ROOM_NAMES[career.stageId] ?? 'Tu pieza'
+                    : venue.label}
+                </Text>
+              </View>
+              <View style={styles.headActions}>
+                <Pressable style={styles.viewToggle} onPress={() => setScreen('city')}>
+                  <Text style={styles.viewToggleText}>MAPA</Text>
+                </Pressable>
+                <Pressable style={styles.viewToggle} onPress={() => setScreen('shop')}>
+                  <Text style={styles.viewToggleText}>SHOP</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.viewToggle}
+                  onPress={() => {
+                    setSelectedId(null);
+                    setListView((v) => !v);
+                  }}
+                >
+                  <Text style={styles.viewToggleText}>{listView ? 'SALA' : 'LISTA'}</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {listView ? (
+              <ActivityList
+                slots={slots}
+                career={career}
+                statLabels={pack.statLabels}
+                onPick={commit}
+              />
+            ) : (
+              <View style={styles.roomWrap}>
+                <RoomScene
+                  career={career}
+                  pack={pack}
+                  slots={slots}
+                  selectedId={selectedId}
+                  onSelect={(s) => {
+                    clearNpcTalk();
+                    setSelectedId(s.spec.id);
+                  }}
+                  onNpc={(npc) => {
+                    setSelectedId(null);
+                    talkToNpc(npcLine(npc.kind, career.daypart, career.rngSeed + npc.kind.length));
+                  }}
+                />
+                {selected ? (
+                  <ActionSheet
+                    slot={selected}
+                    career={career}
+                    pack={pack}
+                    onConfirm={() => commit(selected)}
+                    onCancel={() => setSelectedId(null)}
+                  />
+                ) : (
+                  <View style={styles.hintBar}>
+                    <Text style={styles.hintText}>
+                      Tocá un objeto o una persona. El avatar camina hacia ahí.
+                    </Text>
+                    <Text style={styles.hintCount}>
+                      {slots.filter((s) => s.available).length} acciones
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             <ObjectivesPanel career={career} />
 
             <SectionHeader
-              eyebrow="Esta semana"
-              title="¿Dónde invertís?"
-              right={<Tag label={`${career.maxTurns - career.turn} restantes`} tone="muted" />}
+              eyebrow="Círculo"
+              title="Gente que te sostiene"
+              tone="blue"
+              right={<Tag label={`T${career.season}`} tone="muted" />}
             />
-
-            {matchDay ? (
-              <FadeSlide delay={20}>
-                <PressCard
-                  tone="danger"
-                  onPress={() => pickActivity('match')}
-                  style={styles.matchCard}
-                >
-                  <View style={styles.matchTop}>
-                    <View style={styles.matchLive}>
-                      <LiveDot />
-                      <Text style={styles.matchLiveText}>EN VIVO</Text>
-                    </View>
-                    <View style={styles.matchPhases}>
-                      <Text style={styles.matchPhasesText}>4 FASES</Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.matchTitle}>{matchDay.label}</Text>
-                  <Text style={styles.matchBlurb}>{matchDay.blurb}</Text>
-
-                  <View style={styles.matchFoot}>
-                    <Text style={styles.matchFootText}>
-                      Forma {Math.round(career.form)} · Fatiga {Math.round(career.fatigue)} ·
-                      Duo {career.relations.duo}
-                    </Text>
-                    <View style={styles.goSlab}>
-                      <Text style={styles.goSlabText}>JUGAR</Text>
-                    </View>
-                  </View>
-                </PressCard>
-              </FadeSlide>
-            ) : null}
-
-            <View style={styles.grid}>
-              {training.map((a, i) => {
-                const tone = ACTIVITY_TONE[a.id] ?? 'accent';
-                return (
-                  <FadeSlide key={a.id} delay={40 + i * 40} style={styles.gridItem}>
-                    <PressCard
-                      onPress={() => pickActivity(a.id)}
-                      tone={tone}
-                      style={styles.activityCard}
-                    >
-                      <View style={styles.activityHead}>
-                        <IconBadge name={a.id} tone={tone} size={34} />
-                        <Text style={styles.activityLabel} numberOfLines={2}>
-                          {a.label}
-                        </Text>
-                      </View>
-                      <Text style={styles.activityBlurb} numberOfLines={3}>
-                        {a.blurb}
-                      </Text>
-                      <View style={styles.chipRow}>
-                        {activityChips(a, pack.statLabels).map((c) => (
-                          <Chip key={c.label} label={c.label} tone={c.tone} />
-                        ))}
-                      </View>
-                    </PressCard>
-                  </FadeSlide>
-                );
-              })}
-            </View>
-
-            <SectionHeader eyebrow="Círculo" title="Gente que te sostiene" tone="blue" />
             <View style={styles.relGrid}>
               {relationList.map((r) => (
                 <RelationCard
                   key={r.key}
+                  kind={r.key}
                   name={r.name}
                   role={r.role}
-                  value={career.relations[r.key]}
+                  value={career.relations[r.key as keyof Relations]}
                   tone={r.tone}
                 />
               ))}
             </View>
 
+            {pressure.soft ? (
+              <Pressable onPress={retireCareer} style={styles.retireLink}>
+                <Text style={styles.retireLinkText}>Retirarme ahora</Text>
+              </Pressable>
+            ) : null}
+
             <Text style={styles.footHint}>
-              La forma sube compitiendo y baja con la fatiga. Las relaciones cambian cómo te
-              tratan los eventos y cuánto rinde el equipo en la serie.
+              Carrera continua: temporadas sin hard end. Viajá por el mapa, mejorá el setup y
+              hablá con tu gente. A los 35 el circuito empieza a apretar.
             </Text>
           </FadeSlide>
         </ScrollView>
@@ -313,6 +474,132 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemi,
   },
 
+  /* dayparts */
+  plannerWrap: { marginBottom: 12, gap: 6 },
+  dayparts: { flexDirection: 'row', gap: 8 },
+  dpBlock: {
+    flex: 1,
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    gap: 3,
+  },
+  dpBlockActive: { borderColor: 'rgba(204,255,51,0.45)', backgroundColor: colors.accentSoft },
+  dpBlockDone: { opacity: 0.6 },
+  dpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dpLabel: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.6,
+  },
+  dpLabelActive: { color: colors.accent },
+  dpFill: {
+    color: colors.muted,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11.5,
+  },
+  dpFillDone: { color: colors.faint, textDecorationLine: 'line-through' },
+  fixture: {
+    borderLeftWidth: 2,
+    borderLeftColor: colors.line,
+    paddingLeft: 9,
+    paddingVertical: 2,
+    gap: 1,
+  },
+  fixtureLive: { borderLeftColor: colors.danger },
+  fixtureLabel: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.5,
+  },
+  fixtureLabelLive: { color: colors.danger },
+  fixtureHint: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 11,
+  },
+
+  /* sala */
+  roomHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    gap: 10,
+  },
+  roomTitleWrap: { flex: 1 },
+  roomEyebrow: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 1.8,
+  },
+  roomTitle: {
+    color: colors.text,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    letterSpacing: -0.8,
+    textTransform: 'uppercase',
+  },
+  headActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  viewToggle: {
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    transform: [{ skewX: SKEW }],
+  },
+  viewToggleText: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.2,
+    transform: [{ skewX: UNSKEW }],
+  },
+  dismissTalk: { alignSelf: 'flex-start', marginTop: 8 },
+  dismissTalkText: {
+    color: colors.blue,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  retireLink: { marginTop: 16, alignSelf: 'center', padding: 8 },
+  retireLinkText: {
+    color: colors.danger,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  roomWrap: { marginBottom: 16 },
+  hintBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: colors.line,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  hintText: {
+    flex: 1,
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+  },
+  hintCount: {
+    color: colors.accent,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.6,
+  },
+
   /* objetivos */
   objRow: { gap: 6 },
   objRowGap: {
@@ -326,27 +613,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
   },
-  objLabel: {
-    color: colors.text,
-    fontFamily: fonts.bodyBold,
-    fontSize: 14,
-  },
-  objCount: {
-    color: colors.gold,
-    fontFamily: fonts.displaySemi,
-    fontSize: 14,
-  },
-  objBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  objHint: {
-    flex: 1,
-    color: colors.faint,
-    fontFamily: fonts.body,
-    fontSize: 11,
-  },
+  objLabel: { color: colors.text, fontFamily: fonts.bodyBold, fontSize: 14 },
+  objCount: { color: colors.gold, fontFamily: fonts.displaySemi, fontSize: 14 },
+  objBottom: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  objHint: { flex: 1, color: colors.faint, fontFamily: fonts.body, fontSize: 11 },
   objReward: {
     color: colors.gold,
     fontFamily: fonts.bodyBold,
@@ -354,98 +624,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* match day */
-  matchCard: { marginBottom: 12, padding: 16, paddingLeft: 18 },
-  matchTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  matchLive: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  matchLiveText: {
-    color: colors.danger,
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    letterSpacing: 2,
-  },
-  matchPhases: {
-    backgroundColor: 'rgba(255,59,92,0.18)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    transform: [{ skewX: SKEW }],
-  },
-  matchPhasesText: {
-    color: colors.danger,
-    fontFamily: fonts.bodyBold,
-    fontSize: 9,
-    letterSpacing: 1.4,
-    transform: [{ skewX: UNSKEW }],
-  },
-  matchTitle: {
-    color: colors.text,
-    fontFamily: fonts.display,
-    fontSize: 24,
-    letterSpacing: -0.9,
-    textTransform: 'uppercase',
-    marginBottom: 5,
-  },
-  matchBlurb: {
-    color: colors.muted,
-    fontFamily: fonts.body,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  matchFoot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,59,92,0.25)',
-  },
-  matchFootText: {
-    flex: 1,
-    color: colors.muted,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-  },
-  goSlab: {
-    backgroundColor: colors.danger,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    transform: [{ skewX: SKEW }],
-  },
-  goSlabText: {
-    color: colors.white,
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 1.6,
-    transform: [{ skewX: UNSKEW }],
-  },
-
-  /* actividades */
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  gridItem: {
-    flexGrow: 1,
-    flexBasis: '46%',
-    minWidth: 150,
-  },
-  activityCard: {
-    height: '100%',
-    gap: 9,
-  },
-  activityHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  /* lista */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  gridItem: { flexGrow: 1, flexBasis: '46%', minWidth: 150 },
+  activityCard: { height: '100%', gap: 9 },
+  activityHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   activityLabel: {
     flex: 1,
     color: colors.text,
@@ -460,18 +643,10 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     flex: 1,
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
 
   /* relaciones */
-  relGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
+  relGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   relCard: {
     flexGrow: 1,
     flexBasis: '46%',
@@ -482,21 +657,11 @@ const styles = StyleSheet.create({
     paddingLeft: 14,
     borderWidth: 1,
     borderColor: colors.line,
-    gap: 10,
+    gap: 8,
     overflow: 'hidden',
   },
-  relEdge: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 2,
-  },
-  relTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
+  relEdge: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 2 },
+  relTop: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   avatar: {
     width: 30,
     height: 30,
@@ -505,32 +670,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontFamily: fonts.display,
-    fontSize: 14,
-  },
+  avatarText: { fontFamily: fonts.display, fontSize: 14 },
   relNames: { flex: 1 },
-  relName: {
-    color: colors.text,
-    fontFamily: fonts.bodyBold,
-    fontSize: 13,
-  },
-  relRole: {
-    color: colors.faint,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 10,
-  },
-  relScore: { alignItems: 'flex-end' },
-  relValue: {
-    fontFamily: fonts.displaySemi,
-    fontSize: 14,
-  },
-  relMood: {
-    color: colors.faint,
-    fontFamily: fonts.bodyBold,
-    fontSize: 8.5,
-    letterSpacing: 1,
-  },
+  relName: { color: colors.text, fontFamily: fonts.bodyBold, fontSize: 13 },
+  relRole: { color: colors.faint, fontFamily: fonts.bodyMedium, fontSize: 10 },
+  rankPips: { flexDirection: 'row', gap: 2.5 },
+  rankPip: { width: 5, height: 5, transform: [{ skewX: SKEW }] },
+  relPerk: { fontFamily: fonts.bodyBold, fontSize: 11 },
+  relNext: { color: colors.faint, fontFamily: fonts.body, fontSize: 10, lineHeight: 14 },
+
   footHint: {
     fontSize: 12,
     lineHeight: 18,

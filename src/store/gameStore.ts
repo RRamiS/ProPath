@@ -2,31 +2,47 @@ import { create } from 'zustand';
 import {
   applyChoice,
   applyWeekActivity,
+  buyItem,
+  closeSeason,
+  continueSeason,
   createCareer,
+  maybeForceRetire,
   maybePromote,
+  nextRng,
   openEvent,
+  retire,
+  travelTo,
   type CareerState,
   type ContentPack,
   type EventMinigame,
   type PlayerProfile,
   type RunDurationId,
+  type VenueId,
   type WeekActivityId,
 } from '../engine';
 import { esportsPack } from '../content/esports/pack';
 import { applyMinigameResult, type MinigameGrade } from '../minigames/applyResult';
 import { resolveMatch } from '../match/simulate';
 
-type Screen = 'home' | 'create' | 'weekHub' | 'play' | 'match' | 'minigame' | 'ending';
+type Screen =
+  | 'home'
+  | 'create'
+  | 'weekHub'
+  | 'play'
+  | 'match'
+  | 'minigame'
+  | 'ending'
+  | 'seasonBreak'
+  | 'shop'
+  | 'city';
 
-/** El partido tiene fases interactivas y luego la pantalla de resultado. */
 type MatchPhase = 'live' | 'result';
 
 export type CinematicPayload = {
   title: string;
   subtitle?: string;
-  /** Líneas que el jugador avanza tocando; reemplazan al subtítulo. */
   beats?: string[];
-  vibe: 'kickoff' | 'promote' | 'skill' | 'ending' | 'match';
+  vibe: 'kickoff' | 'promote' | 'skill' | 'ending' | 'match' | 'season';
   durationMs?: number;
 };
 
@@ -38,6 +54,7 @@ interface GameStore {
   activeMinigame: EventMinigame | null;
   cinematic: CinematicPayload | null;
   matchPhase: MatchPhase;
+  npcTalk: string | null;
   setScreen: (s: Screen) => void;
   setDraft: (p: Partial<PlayerProfile>) => void;
   startCareer: () => void;
@@ -48,6 +65,12 @@ interface GameStore {
   enterMinigame: () => void;
   completeMinigame: (grade: MinigameGrade) => void;
   dismissCinematic: () => void;
+  buyShopItem: (itemId: string) => void;
+  travel: (venueId: VenueId) => void;
+  continueNextSeason: () => void;
+  retireCareer: () => void;
+  talkToNpc: (line: string) => void;
+  clearNpcTalk: () => void;
   reset: () => void;
 }
 
@@ -75,7 +98,7 @@ function maybePromotionCinematic(
     beats: [
       next.lastNotice ?? 'El circuito te abre la puerta.',
       `Nuevo escenario: ${label}. Los rivales ya no fallan las que fallabas vos.`,
-      `Semana ${next.turn} · ${next.wins}V–${next.losses}D. A partir de acá, cada serie pesa.`,
+      `T${next.season} · Semana ${next.weekInSeason} · ${next.wins}V–${next.losses}D.`,
     ],
   };
 }
@@ -84,17 +107,35 @@ function endingCinematic(pack: ContentPack, next: CareerState): CinematicPayload
   const ending = pack.endings.find((e) => e.id === next.endingId);
   return {
     vibe: 'ending',
-    title: ending?.title ?? 'Fin',
+    title: ending?.title ?? 'Retiro',
     beats: [
       ending?.body ?? 'Se cierra el ciclo.',
-      `Cerraste con ${next.wins}V–${next.losses}D en ${next.turn} semanas.`,
+      `${next.ageYears} años · ${next.season} temporadas · ${next.wins}V–${next.losses}D.`,
+      `Dejaste $${next.cash} en el banco y un setup de ${next.ownedItems.length} piezas.`,
     ],
     durationMs: 999999,
   };
 }
 
+function seasonCinematic(next: CareerState): CinematicPayload {
+  const sw = Number(next.flags.lastSeasonWins ?? 0);
+  const sl = Number(next.flags.lastSeasonLosses ?? 0);
+  return {
+    vibe: 'season',
+    title: `Temporada ${next.season - 1} cerrada`,
+    beats: [
+      next.lastNotice ?? 'Se acabó el split.',
+      `Marcas: ${sw}V–${sl}D · $${next.cash} en cuenta.`,
+      next.ageYears >= 35
+        ? `Tenés ${next.ageYears} años. El cuerpo pide retiro — o una temporada más.`
+        : `Tenés ${next.ageYears} años. ¿Seguís o colgás los periféricos?`,
+    ],
+  };
+}
+
 function routeAfterCareer(next: CareerState): Screen {
   if (next.endingId) return 'ending';
+  if (next.phase === 'seasonBreak') return 'seasonBreak';
   if (next.phase === 'match') return 'match';
   if (next.phase === 'event') return 'play';
   return 'weekHub';
@@ -108,12 +149,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeMinigame: null,
   cinematic: null,
   matchPhase: 'live',
+  npcTalk: null,
 
   setScreen: (screen) => set({ screen }),
 
   setDraft: (p) => set({ draft: { ...get().draft, ...p } }),
 
   dismissCinematic: () => set({ cinematic: null }),
+
+  talkToNpc: (line) => set({ npcTalk: line }),
+  clearNpcTalk: () => set({ npcTalk: null }),
 
   startCareer: () => {
     const { pack, draft } = get();
@@ -131,13 +176,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       screen: 'weekHub',
       activeMinigame: null,
       matchPhase: 'live',
+      npcTalk: null,
       cinematic: {
         vibe: 'kickoff',
         title: `${career.profile.name} entra al grind`,
         beats: [
-          `${nation?.name ?? ''} · ${draft.roleId?.toUpperCase()}. Nadie te conoce todavía.`,
-          'Cada semana elegís una sola cosa: entrenar, competir o cuidar la cabeza.',
-          'Nada es gratis. La forma sube, la fatiga también.',
+          `${nation?.name ?? ''} · ${draft.roleId?.toUpperCase()} · ${career.ageYears} años.`,
+          'La carrera no tiene fecha de caducidad: temporadas, plata y un setup que se ve.',
+          'Tocá objetos, viajá por la ciudad, hablá con tu gente.',
         ],
       },
     });
@@ -145,12 +191,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   pickActivity: (activityId) => {
     const { pack, career } = get();
-    if (!career || career.endingId) return;
+    if (!career || career.endingId || career.phase === 'seasonBreak') return;
     const outcome = applyWeekActivity(pack, career, activityId);
     let next = outcome.state;
 
     if (outcome.kind === 'ending') {
       set({ career: next, screen: 'ending', cinematic: endingCinematic(pack, next) });
+      return;
+    }
+
+    if (outcome.kind === 'season') {
+      set({
+        career: next,
+        screen: 'seasonBreak',
+        cinematic: seasonCinematic(next),
+      });
+      return;
+    }
+
+    if (outcome.kind === 'slot') {
+      set({ career: next, screen: 'weekHub', npcTalk: null });
       return;
     }
 
@@ -177,7 +237,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ career: next, screen: 'play', cinematic: promo });
   },
 
-  /** Cierra las fases interactivas y deja la pantalla de resultado del partido. */
   resolveLiveMatch: (choices, opponent) => {
     const { career } = get();
     if (!career) return;
@@ -185,15 +244,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ career: afterMatch, screen: 'match', matchPhase: 'result' });
   },
 
-  /** Del resultado del partido al evento narrativo de esa semana. */
   continueAfterMatch: () => {
     const { pack, career } = get();
     if (!career) return;
 
     const promoted = maybePromote({ ...career, phase: 'event' });
     const promo = maybePromotionCinematic(pack, career, promoted);
-    const next = openEvent(pack, promoted);
 
+    if (promoted.weekInSeason >= promoted.maxTurns) {
+      const roll = nextRng(promoted.rngSeed);
+      const closed = closeSeason({ ...promoted, rngSeed: roll.seed });
+      const forced = maybeForceRetire(closed, roll.value);
+      if (forced) {
+        set({ career: forced, screen: 'ending', cinematic: endingCinematic(pack, forced) });
+        return;
+      }
+      set({ career: closed, screen: 'seasonBreak', cinematic: seasonCinematic(closed) });
+      return;
+    }
+
+    const next = openEvent(pack, promoted);
     set({
       career: next,
       screen: routeAfterCareer(next),
@@ -247,6 +317,47 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
+  buyShopItem: (itemId) => {
+    const { career } = get();
+    if (!career) return;
+    const next = buyItem(career, itemId);
+    if (!next) return;
+    set({ career: next });
+  },
+
+  travel: (venueId) => {
+    const { career } = get();
+    if (!career || career.endingId || career.phase === 'seasonBreak') return;
+    set({ career: travelTo(career, venueId), screen: 'weekHub', npcTalk: null });
+  },
+
+  continueNextSeason: () => {
+    const { career } = get();
+    if (!career) return;
+    const next = continueSeason(career);
+    set({
+      career: next,
+      screen: 'weekHub',
+      cinematic: {
+        vibe: 'season',
+        title: `Temporada ${next.season}`,
+        subtitle: `${next.ageYears} años · $${next.cash}`,
+        durationMs: 1600,
+      },
+    });
+  },
+
+  retireCareer: () => {
+    const { pack, career } = get();
+    if (!career) return;
+    const next = retire(career, false);
+    set({
+      career: next,
+      screen: 'ending',
+      cinematic: endingCinematic(pack, next),
+    });
+  },
+
   reset: () =>
     set({
       career: null,
@@ -255,5 +366,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeMinigame: null,
       cinematic: null,
       matchPhase: 'live',
+      npcTalk: null,
     }),
 }));

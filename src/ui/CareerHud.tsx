@@ -25,7 +25,6 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
   const nation = pack.nations.find((n) => n.id === career.profile.nationId);
   const tone = stageTone[career.stageId] ?? 'accent';
   const t = tones[tone];
-  const winning = career.wins >= career.losses;
 
   return (
     <View style={styles.wrap}>
@@ -47,11 +46,13 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
         <View style={styles.headRow}>
           <View style={styles.weekBlock}>
             <Text style={[styles.weekNum, { color: t.fg }]}>
-              {String(Math.min(career.turn + 1, career.maxTurns)).padStart(2, '0')}
+              {String(Math.min(career.weekInSeason + 1, career.maxTurns)).padStart(2, '0')}
             </Text>
             <View>
               <Text style={styles.weekLabel}>SEMANA</Text>
-              <Text style={styles.weekOf}>de {career.maxTurns}</Text>
+              <Text style={styles.weekOf}>
+                T{career.season} · {career.maxTurns}
+              </Text>
             </View>
           </View>
 
@@ -62,18 +63,19 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
             <View style={styles.identityMeta}>
               <NationBadge nationId={nation?.id} tone={tone} />
               <Text style={styles.role}>{career.profile.roleId.toUpperCase()}</Text>
+              <Text style={styles.age}>{career.ageYears}a</Text>
             </View>
           </View>
 
           <View style={styles.record}>
-            <Text style={[styles.recordNum, { color: winning ? colors.accent : colors.danger }]}>
+            <Text style={[styles.recordNum, { color: colors.gold }]}>${career.cash}</Text>
+            <Text style={styles.recordLabel}>
               {career.wins}–{career.losses}
             </Text>
-            <Text style={styles.recordLabel}>V–D</Text>
           </View>
         </View>
 
-        <SeasonStrip turn={career.turn} maxTurns={career.maxTurns} tone={tone} />
+        <SeasonStrip turn={career.weekInSeason} maxTurns={career.maxTurns} tone={tone} />
 
         {!compact ? (
           <View style={styles.gauges}>
@@ -199,6 +201,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 9,
     letterSpacing: 1.6,
+  },
+  age: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
   },
   record: {
     alignItems: 'flex-end',

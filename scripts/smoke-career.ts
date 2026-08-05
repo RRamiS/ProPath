@@ -1,13 +1,19 @@
 /**
- * Simula partidas completas (sin UI) para validar el loop hub → actividad → evento/match.
+ * Simula partidas (sin UI) para validar loop continuo.
  * Ejecutar: npx --yes tsx scripts/smoke-career.ts
  */
 import {
   applyChoice,
   applyWeekActivity,
+  availableActivities,
+  closeSeason,
+  continueSeason,
   createCareer,
+  maybeForceRetire,
   nextRng,
   openEvent,
+  retire,
+  travelTo,
   RUN_DURATIONS,
   type RunDurationId,
   type WeekActivityId,
@@ -18,14 +24,44 @@ import { esportsPack } from '../src/content/esports/pack';
 const ACTIVITY_CYCLE: WeekActivityId[] = ['soloq', 'vod', 'scrim', 'match', 'rest', 'content'];
 
 const MATCH_LINES = [
-  ['safe', 'farm', 'peel'],
-  ['prio', 'playmake', 'focus'],
-  ['flex', 'roam', 'bail'],
-  ['safe', 'farm', 'steal'],
-  ['prio', 'farm', 'focus'],
+  ['safe', 'farm', 'peel', 'siege'],
+  ['prio', 'playmake', 'focus', 'close'],
+  ['flex', 'roam', 'bail', 'stall'],
+  ['safe', 'farm', 'steal', 'baron'],
+  ['prio', 'farm', 'focus', 'close'],
 ];
 
-function playThrough(durationId: RunDurationId, seed: number, preferMental = false) {
+type Brain = 'cycle' | 'mental' | 'smart';
+
+function smartPick(state: ReturnType<typeof createCareer>, options: WeekActivityId[]) {
+  if (state.fatigue >= 58 && options.includes('rest')) return 'rest';
+  if (state.fatigue < 70 && options.includes('match')) return 'match';
+  if (state.form < 48 && options.includes('soloq')) return 'soloq';
+  if (options.includes('scrim') && state.fatigue < 55) return 'scrim';
+  if (options.includes('vod')) return 'vod';
+  if (options.includes('rest')) return 'rest';
+  return options[0]!;
+}
+
+function ensureVenue(state: ReturnType<typeof createCareer>, activity: WeekActivityId) {
+  if (activity === 'match' && state.venueId !== 'arena') return travelTo(state, 'arena');
+  if (activity === 'scrim' && state.venueId !== 'academy') return travelTo(state, 'academy');
+  if (activity === 'rest' && state.venueId !== 'home' && state.venueId !== 'gym') {
+    return travelTo(state, 'home');
+  }
+  if (
+    (activity === 'soloq' || activity === 'content') &&
+    state.venueId !== 'home'
+  ) {
+    return travelTo(state, 'home');
+  }
+  if (activity === 'vod' && state.venueId !== 'home' && state.venueId !== 'academy') {
+    return travelTo(state, 'home');
+  }
+  return state;
+}
+
+function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cycle') {
   let state = createCareer(
     esportsPack,
     { name: 'SmokeBot', nationId: 'ar', roleId: 'mid', durationId },
@@ -35,24 +71,66 @@ function playThrough(durationId: RunDurationId, seed: number, preferMental = fal
   let guard = 0;
   let actIdx = 0;
   let rng = seed;
+  let seasonsDone = 0;
+  const targetSeasons = 2;
 
-  while (!state.endingId && guard < 400) {
+  while (!state.endingId && guard < 800) {
     guard++;
 
+    if (state.phase === 'seasonBreak') {
+      seasonsDone++;
+      if (seasonsDone >= targetSeasons || state.ageYears >= 38) {
+        state = retire(state, false);
+        break;
+      }
+      state = continueSeason(state);
+      continue;
+    }
+
     if (state.phase === 'hub' || !state.currentEventId) {
-      const activity = ACTIVITY_CYCLE[actIdx % ACTIVITY_CYCLE.length]!;
+      let options = availableActivities(state, esportsPack);
+      if (options.length === 0) {
+        state = travelTo(state, 'home');
+        options = availableActivities(state, esportsPack);
+        if (options.length === 0) throw new Error('No activities at home');
+      }
+
+      const ids = options.map((o) => o.id);
+      let activity: WeekActivityId;
+      if (brain === 'smart') activity = smartPick(state, ids);
+      else {
+        activity = ACTIVITY_CYCLE[actIdx % ACTIVITY_CYCLE.length]!;
+        if (!ids.includes(activity)) activity = ids[actIdx % ids.length]!;
+      }
       actIdx++;
+
+      state = ensureVenue(state, activity);
+      // Re-check after travel
+      options = availableActivities(state, esportsPack);
+      if (!options.some((o) => o.id === activity)) {
+        activity = options[0]!.id;
+      }
+
       const outcome = applyWeekActivity(esportsPack, state, activity);
       state = outcome.state;
 
       if (outcome.kind === 'ending') break;
+      if (outcome.kind === 'season') continue;
+      if (outcome.kind === 'slot') continue;
 
       if (outcome.kind === 'match') {
         const pick = nextRng(rng);
         rng = pick.seed;
         const line = MATCH_LINES[Math.floor(pick.value * MATCH_LINES.length)]!;
         const { state: after } = resolveMatch(state, line, 'Smoke Opp');
-        state = openEvent(esportsPack, { ...after, phase: 'event' });
+        if (after.weekInSeason >= after.maxTurns) {
+          const roll = nextRng(after.rngSeed);
+          const closed = closeSeason({ ...after, rngSeed: roll.seed });
+          const forced = maybeForceRetire(closed, roll.value);
+          state = forced ?? closed;
+        } else {
+          state = openEvent(esportsPack, { ...after, phase: 'event' });
+        }
       } else {
         state = openEvent(esportsPack, state);
       }
@@ -63,7 +141,7 @@ function playThrough(durationId: RunDurationId, seed: number, preferMental = fal
     if (!event) throw new Error(`Missing event ${state.currentEventId}`);
 
     let choice = event.choices[0]!;
-    if (preferMental || (state.stats.mentality ?? 0) < 40) {
+    if (brain !== 'cycle' || (state.stats.mentality ?? 0) < 40) {
       choice = [...event.choices].sort((a, b) => {
         const am = a.effect.stats?.mentality ?? 0;
         const bm = b.effect.stats?.mentality ?? 0;
@@ -78,14 +156,16 @@ function playThrough(durationId: RunDurationId, seed: number, preferMental = fal
     state = applyChoice(esportsPack, state, choice.id);
   }
 
-  if (!state.endingId) throw new Error(`${durationId}: no ending after ${guard} steps`);
-  if (state.turn > state.maxTurns) throw new Error(`${durationId}: exceeded maxTurns`);
+  if (!state.endingId) state = retire(state, false);
 
   const ending = esportsPack.endings.find((e) => e.id === state.endingId);
   return {
     durationId,
     turns: state.turn,
-    maxTurns: state.maxTurns,
+    seasons: state.season,
+    age: state.ageYears,
+    cash: state.cash,
+    owned: state.ownedItems.length,
     stage: state.stageId,
     ending: ending?.title ?? state.endingId,
     tier: ending?.tier,
@@ -93,20 +173,27 @@ function playThrough(durationId: RunDurationId, seed: number, preferMental = fal
     form: state.form,
     fatigue: state.fatigue,
     record: `${state.wins}-${state.losses}`,
-    relations: state.relations,
   };
 }
 
 const results: ReturnType<typeof playThrough>[] = [];
 for (const d of RUN_DURATIONS) {
-  const a = playThrough(d.id, 42 + d.maxTurns, false);
-  const b = playThrough(d.id, 42 + d.maxTurns, true);
-  results.push(a, b);
-  console.log('default', JSON.stringify(a));
+  const a = playThrough(d.id, 42 + d.maxTurns, 'cycle');
+  const b = playThrough(d.id, 42 + d.maxTurns, 'mental');
+  const c = playThrough(d.id, 42 + d.maxTurns, 'smart');
+  results.push(a, b, c);
+  console.log('ciego ', JSON.stringify(a));
   console.log('mental', JSON.stringify(b));
+  console.log('smart ', JSON.stringify(c));
 }
 
 const losses = results.some((r) => r.record.includes('-') && !r.record.endsWith('-0'));
 const tiers = new Set(results.map((r) => r.tier));
 console.log('OK —', esportsPack.events.length, 'events,', esportsPack.endings.length, 'endings');
 console.log('variety — tiers:', [...tiers].join(','), '| hasLosses:', losses);
+console.log(
+  'life sim — seasons:',
+  results.map((r) => r.seasons).join('/'),
+  '| ages:',
+  results.map((r) => r.age).join('/')
+);
