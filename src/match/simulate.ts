@@ -1,7 +1,31 @@
 import { applyStatDelta, nextRng } from '../engine/createCareer';
-import type { CareerState, MatchResult, Relations } from '../engine/types';
+import type { CareerState, MatchFactor, MatchResult, Relations } from '../engine/types';
 
-export type MatchPhase = 'draft' | 'early' | 'fight' | 'result';
+export type MatchPhase = 'draft' | 'early' | 'fight' | 'late';
+
+/** Las 4 fases jugables, en orden. El stepper y el contador leen de acá. */
+export const MATCH_PHASE_LABELS: string[] = ['Draft', 'Early', 'Fight', 'Cierre'];
+
+/** Línea de play-by-play para el feed del broadcast. */
+export function feedLine(phaseIndex: number, choiceId: string): string {
+  const lines: Record<string, string> = {
+    safe: 'Draft de scaling — apuestan al late',
+    prio: 'Se llevan prio de early en el draft',
+    flex: 'Pick flex sorpresa: el rival pide pausa mental',
+    farm: 'CS limpio y wards en río',
+    playmake: 'Buscan la primera pelea del mapa',
+    roam: 'Roam a side lane — el mapa se mueve',
+    focus: 'Van al carry enemigo sin dudar',
+    peel: 'Peel perfecto sobre su propio carry',
+    steal: 'Timing de objetivo — todos al pit',
+    bail: 'Resetean la pelea y toman torretas',
+    close: 'Van directo al nexo sin mirar atrás',
+    siege: 'Asedio paciente: torre por torre',
+    baron: 'Se juegan el baron con el rival vivo',
+    stall: 'Estiran el mapa esperando el error',
+  };
+  return lines[choiceId] ?? `Fase ${phaseIndex + 1} resuelta`;
+}
 
 export interface MatchChoice {
   id: string;
@@ -71,6 +95,23 @@ export function buildMatchBeats(roleId: string): MatchBeat[] {
         { id: 'bail', label: 'Resetear y no pelear', momentum: -1 },
       ],
     },
+    {
+      phase: 'late',
+      title: 'Cierre',
+      body: 'Minuto 30. Una decisión mal tomada acá borra todo lo anterior.',
+      choices: [
+        { id: 'close', label: 'Cerrar ya, todo al nexo', hint: 'Si sale, se acabó', momentum: 2 },
+        { id: 'siege', label: 'Asedio paciente', hint: 'Seguro pero lento', momentum: 1 },
+        {
+          id: 'baron',
+          label: 'Baron con el rival vivo',
+          hint: 'Altísimo riesgo',
+          momentum: 2,
+          formBonus: 2,
+        },
+        { id: 'stall', label: 'Estirar y esperar el error', momentum: -1, formBonus: 1 },
+      ],
+    },
   ];
 }
 
@@ -87,30 +128,37 @@ export function resolveMatch(
   };
 
   const beats = buildMatchBeats(state.profile.roleId);
-  let momentum = (state.form - 55) / 40 + (state.relations.duo - 45) / 55;
-  momentum -= state.fatigue / 45;
   const highlights: string[] = [];
+  const factors: MatchFactor[] = [];
 
+  const add = (label: string, value: number) => {
+    if (Math.abs(value) < 0.05) return;
+    factors.push({ label, value: Math.round(value * 100) / 100 });
+  };
+
+  add('Forma', (state.form - 55) / 50);
+  add('Fatiga', -(state.fatigue - 40) / 60);
+  add('Química con el duo', (state.relations.duo - 45) / 70);
+  add('Preparación del coach', (state.relations.coach - 45) / 110);
+  add('Mecánicas', (state.stats.mechanics ?? 0) / 200);
+  add('Teamplay', (state.stats.teamwork ?? 0) / 220);
+
+  let callsValue = 0;
   choices.forEach((cid, i) => {
     const beat = beats[i];
     const choice = beat?.choices.find((c) => c.id === cid);
     if (!choice) return;
-    momentum += choice.momentum * 0.7;
-    if (choice.formBonus) momentum += choice.formBonus * 0.08;
+    // Con 4 fases, si cada llamada pesa mucho el resto del juego no importa.
+    callsValue += choice.momentum * 0.42;
+    if (choice.formBonus) callsValue += choice.formBonus * 0.06;
     if (i === 0 && cid === 'prio') highlights.push('Early prio en draft');
     if (i === 1 && cid === 'playmake') highlights.push('First blood attempt');
     if (i === 2 && cid === 'focus') highlights.push('Foco limpio al carry');
     if (i === 2 && cid === 'steal') highlights.push('Play de objetivo');
+    if (i === 3 && cid === 'baron') highlights.push('Baron robado bajo presión');
+    if (i === 3 && cid === 'close') highlights.push('Cierre directo al nexo');
   });
-
-  momentum += (state.stats.mechanics ?? 0) / 140;
-  momentum += (state.stats.teamwork ?? 0) / 150;
-  momentum += (state.relations.coach - 45) / 80;
-
-  // Baseline: partidos son difíciles
-  momentum -= 0.4;
-
-  if (state.relations.rival >= 55) momentum -= 0.3;
+  add('Tus llamadas', callsValue);
 
   const stagePenalty =
     state.stageId === 'worlds'
@@ -120,13 +168,18 @@ export function resolveMatch(
         : state.stageId === 'challengers'
           ? 0.2
           : 0;
-  momentum -= stagePenalty;
+  // Los rivales también progresan: la temporada se endurece sola.
+  const seasonPressure = (state.turn / Math.max(1, state.maxTurns)) * 0.6;
+  add('Nivel del rival', -(0.25 + stagePenalty + seasonPressure));
 
-  if (state.form < 40) momentum -= 0.35;
-  if (state.fatigue > 75) momentum -= 0.4;
+  if (state.relations.rival >= 55) add('El rival te estudió', -0.3);
+  if (state.form < 40) add('Fuera de ritmo', -0.35);
+  if (state.fatigue > 75) add('Cuerpo quemado', -0.4);
 
   const noise = (roll() - 0.5) * 1.6;
-  const score = momentum + noise;
+  add('Varianza del día', noise);
+
+  const score = factors.reduce((sum, f) => sum + f.value, 0);
   const won = score >= 0.25;
 
   const kills = Math.max(0, Math.round(3 + score * 2 + roll() * 4));
@@ -149,6 +202,7 @@ export function resolveMatch(
     opponent,
     scoreLine: `${our}–${their}`,
     highlights: highlights.slice(0, 4),
+    factors: [...factors].sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, 6),
   };
 
   let stats = applyStatDelta(state.stats, {

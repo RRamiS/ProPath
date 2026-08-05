@@ -9,6 +9,12 @@ export const hubEvents: GameEvent[] = [
     stages: ['soloq', 'academy'],
     activityTags: ['soloq'],
     weight: 8,
+    minigame: {
+      kind: 'combo',
+      title: 'Combo bajo presión',
+      blurb: 'Repetí la secuencia de habilidades con el chat encima.',
+      difficulty: 2,
+    },
     choices: [
       {
         id: 'mute_climb',
@@ -125,6 +131,12 @@ export const hubEvents: GameEvent[] = [
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['match'],
     weight: 10,
+    minigame: {
+      kind: 'dodge',
+      title: 'Reposicionamiento',
+      blurb: 'El coach marca las zonas donde moriste. Esquivalas otra vez.',
+      difficulty: 2,
+    },
     choices: [
       {
         id: 'own_it',
@@ -175,6 +187,12 @@ export const hubEvents: GameEvent[] = [
     activityTags: ['soloq', 'match'],
     requireRelations: { rival: 40 },
     weight: 8,
+    minigame: {
+      kind: 'clutch',
+      title: 'Duelo de lane',
+      blurb: 'Uno contra uno. El timing decide quién se lleva el highlight.',
+      difficulty: 3,
+    },
     choices: [
       {
         id: 'lock_in',
@@ -196,6 +214,12 @@ export const hubEvents: GameEvent[] = [
     activityTags: ['content', 'rest', 'match'],
     requireRelations: { manager: 40 },
     weight: 9,
+    minigame: {
+      kind: 'negotiation',
+      title: 'Presupuesto de viaje',
+      blurb: 'Cuánto pedís para bancar visas, bootcamp y staff.',
+      difficulty: 3,
+    },
     choices: [
       {
         id: 'push_visa',
@@ -235,6 +259,59 @@ export const hubEvents: GameEvent[] = [
         id: 'join_chaos',
         label: 'Sumarte al caos',
         effect: { stats: { reputation: 3, mentality: -5 } },
+      },
+    ],
+  },
+  {
+    id: 'press_conference',
+    title: 'Conferencia post-serie',
+    body: 'Tres micrófonos, una cámara y periodistas que ya escribieron el título.',
+    stages: ['challengers', 'tier1', 'worlds'],
+    activityTags: ['match', 'content'],
+    weight: 9,
+    minigame: {
+      kind: 'interview',
+      title: 'Sala de prensa',
+      blurb: 'Respondé rápido y sin regalar titulares.',
+      difficulty: 2,
+    },
+    choices: [
+      {
+        id: 'short_answers',
+        label: 'Respuestas cortas y neutras',
+        effect: { stats: { reputation: 2, mentality: 2 } },
+      },
+      {
+        id: 'skip_press',
+        label: 'Mandar al manager en tu lugar',
+        effect: { stats: { reputation: -4 }, relations: { manager: -3 } },
+      },
+    ],
+  },
+  {
+    id: 'contract_offer',
+    title: 'Oferta sobre la mesa',
+    body: 'Sola desliza un contrato. Podés firmar lo razonable o pedir más y arriesgar.',
+    stages: ['challengers', 'tier1', 'worlds'],
+    activityTags: ['content', 'rest', 'match'],
+    requireRelations: { manager: 30 },
+    weight: 9,
+    minigame: {
+      kind: 'negotiation',
+      title: 'Mesa de negociación',
+      blurb: 'Parar la aguja en la franja justa. O ir por el doble.',
+      difficulty: 2,
+    },
+    choices: [
+      {
+        id: 'sign_standard',
+        label: 'Firmar lo estándar',
+        effect: { stats: { money: 10, mentality: 3 }, relations: { manager: 3 } },
+      },
+      {
+        id: 'delay_signing',
+        label: 'Esperar mejor momento',
+        effect: { stats: { money: -2, reputation: 2 }, relations: { manager: -2 } },
       },
     ],
   },

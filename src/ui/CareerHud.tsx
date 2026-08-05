@@ -1,168 +1,230 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CareerState, ContentPack } from '../engine/types';
-import { colors, fonts, radius, space } from './theme';
+import { Gauge, SeasonStrip } from './components';
+import { NationBadge } from './NationBadge';
+import { Ticker } from './Ticker';
+import { colors, fonts, radius, SKEW, space, stageTone, tones, UNSKEW } from './theme';
 
 type Props = {
   career: CareerState;
   pack: ContentPack;
+  /** Versión reducida para pantallas de evento */
   compact?: boolean;
+  onExit?: () => void;
 };
 
-function MiniBar({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <View style={styles.miniWrap}>
-      <View style={styles.miniLabelRow}>
-        <Text style={styles.miniLabel}>{label}</Text>
-        <Text style={[styles.miniVal, { color }]}>{value}</Text>
-      </View>
-      <View style={styles.miniTrack}>
-        <View style={[styles.miniFill, { width: `${Math.max(4, Math.min(100, value))}%`, backgroundColor: color }]} />
-      </View>
-    </View>
-  );
+function fatigueHint(fatigue: number): string | undefined {
+  if (fatigue >= 85) return 'Quemado: la forma se desploma';
+  if (fatigue >= 70) return 'Zona roja — conviene descansar';
+  return undefined;
 }
 
-export function CareerHud({ career, pack, compact }: Props) {
+/** Lower-third de broadcast: etapa, semana, marcador y estado físico. */
+export function CareerHud({ career, pack, compact, onExit }: Props) {
   const stage = pack.stages.find((s) => s.id === career.stageId);
   const nation = pack.nations.find((n) => n.id === career.profile.nationId);
+  const tone = stageTone[career.stageId] ?? 'accent';
+  const t = tones[tone];
+  const winning = career.wins >= career.losses;
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.seasonStrip}>
-        <Text style={styles.stage}>{stage?.name ?? career.stageId}</Text>
-        <Text style={styles.week}>
-          Semana {career.turn}/{career.maxTurns}
-        </Text>
-        <Text style={styles.record}>
-          {career.wins}W–{career.losses}L
-        </Text>
-      </View>
+      <View style={[styles.deck, { borderColor: t.border }]}>
+        <View style={[styles.edge, { backgroundColor: t.fg }]} />
 
-      <View style={styles.identity}>
-        <Text style={styles.name}>
-          {nation?.flag} {career.profile.name}
-        </Text>
-        <Text style={styles.role}>{career.profile.roleId.toUpperCase()}</Text>
-      </View>
-
-      {!compact ? (
-        <View style={styles.bars}>
-          <MiniBar label="Forma" value={career.form} color={colors.accent} />
-          <MiniBar label="Fatiga" value={career.fatigue} color={colors.danger} />
-        </View>
-      ) : null}
-
-      {career.ticker.length > 0 ? (
-        <View style={styles.ticker}>
-          <Text style={styles.tickerLabel}>SCENE</Text>
-          <Text style={styles.tickerText} numberOfLines={2}>
-            {career.ticker.join('  ·  ')}
+        <View style={[styles.stageTab, { backgroundColor: t.fg }]}>
+          <Text style={styles.stageTabText} numberOfLines={1}>
+            {stage?.name ?? career.stageId}
           </Text>
         </View>
+
+        {onExit ? (
+          <Pressable onPress={onExit} style={styles.exit} hitSlop={10}>
+            <Text style={styles.exitText}>MENÚ</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.headRow}>
+          <View style={styles.weekBlock}>
+            <Text style={[styles.weekNum, { color: t.fg }]}>
+              {String(Math.min(career.turn + 1, career.maxTurns)).padStart(2, '0')}
+            </Text>
+            <View>
+              <Text style={styles.weekLabel}>SEMANA</Text>
+              <Text style={styles.weekOf}>de {career.maxTurns}</Text>
+            </View>
+          </View>
+
+          <View style={styles.identity}>
+            <Text style={styles.name} numberOfLines={1}>
+              {career.profile.name}
+            </Text>
+            <View style={styles.identityMeta}>
+              <NationBadge nationId={nation?.id} tone={tone} />
+              <Text style={styles.role}>{career.profile.roleId.toUpperCase()}</Text>
+            </View>
+          </View>
+
+          <View style={styles.record}>
+            <Text style={[styles.recordNum, { color: winning ? colors.accent : colors.danger }]}>
+              {career.wins}–{career.losses}
+            </Text>
+            <Text style={styles.recordLabel}>V–D</Text>
+          </View>
+        </View>
+
+        <SeasonStrip turn={career.turn} maxTurns={career.maxTurns} tone={tone} />
+
+        {!compact ? (
+          <View style={styles.gauges}>
+            <Gauge label="Forma" value={career.form} />
+            <View style={styles.gaugeSplit} />
+            <Gauge
+              label="Fatiga"
+              value={career.fatigue}
+              invert
+              hint={fatigueHint(career.fatigue)}
+            />
+          </View>
+        ) : null}
+      </View>
+
+      {!compact && career.ticker.length > 0 ? (
+        <Ticker items={career.ticker} tone={tone} />
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: space.md },
-  seasonStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(14,20,28,0.85)',
-    borderRadius: radius.sm,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  wrap: { marginBottom: space.md, gap: 8 },
+  deck: {
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    paddingTop: 18,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    paddingLeft: 16,
+    gap: 12,
+  },
+  edge: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  stageTab: {
+    position: 'absolute',
+    top: -9,
+    left: 14,
+    maxWidth: '62%',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    transform: [{ skewX: SKEW }],
+  },
+  stageTabText: {
+    color: colors.bg,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    transform: [{ skewX: UNSKEW }],
+  },
+  exit: {
+    position: 'absolute',
+    top: -9,
+    right: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    marginBottom: 10,
+    transform: [{ skewX: SKEW }],
   },
-  stage: {
-    color: colors.accent,
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    flex: 1,
-  },
-  week: {
-    color: colors.text,
-    fontFamily: fonts.bodySemi,
-    fontSize: 12,
-  },
-  record: {
+  exitText: {
     color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.4,
+    transform: [{ skewX: UNSKEW }],
+  },
+  headRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  weekBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  weekNum: {
+    fontFamily: fonts.display,
+    fontSize: 34,
+    lineHeight: 36,
+    letterSpacing: -2,
+  },
+  weekLabel: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.6,
+  },
+  weekOf: {
+    color: colors.faint,
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    marginLeft: 10,
+    fontSize: 10,
   },
   identity: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 8,
+    flex: 1,
+    alignItems: 'flex-end',
   },
   name: {
     color: colors.text,
-    fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    fontFamily: fonts.displaySemi,
+    fontSize: 16,
+    letterSpacing: -0.3,
+  },
+  identityMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 3,
   },
   role: {
-    color: colors.muted,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-    letterSpacing: 0.6,
-  },
-  bars: { gap: 6, marginBottom: 8 },
-  miniWrap: { marginBottom: 2 },
-  miniLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-  },
-  miniLabel: {
     color: colors.faint,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11,
-  },
-  miniVal: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-  },
-  miniTrack: {
-    height: 4,
-    borderRadius: 99,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    overflow: 'hidden',
-  },
-  miniFill: {
-    height: '100%',
-    borderRadius: 99,
-  },
-  ticker: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(107,163,255,0.08)',
-    borderRadius: radius.sm,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(107,163,255,0.2)',
-    gap: 8,
-  },
-  tickerLabel: {
-    color: colors.blue,
     fontFamily: fonts.bodyBold,
     fontSize: 9,
-    letterSpacing: 1.2,
-    marginTop: 2,
+    letterSpacing: 1.6,
   },
-  tickerText: {
-    flex: 1,
-    color: colors.muted,
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    lineHeight: 16,
+  record: {
+    alignItems: 'flex-end',
+    borderLeftWidth: 1,
+    borderLeftColor: colors.line,
+    paddingLeft: 12,
+  },
+  recordNum: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    letterSpacing: -0.8,
+  },
+  recordLabel: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 8.5,
+    letterSpacing: 1.6,
+  },
+  gauges: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+  },
+  gaugeSplit: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.line,
   },
 });

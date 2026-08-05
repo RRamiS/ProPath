@@ -72,20 +72,34 @@ export function createCareer(
     lastMatch: null,
     phase: 'hub',
     ticker: [
-      `${nation.flag} ${profile.name.trim() || 'Prodigy'} entra al ranked`,
+      `${profile.name.trim() || 'Prodigy'} entra al ranked`,
       `Scouts activos en ${nation.regionId}`,
       'Patch notes: meta estable por ahora',
     ],
     wins: 0,
     losses: 0,
+    claimedObjectives: [],
   };
+}
+
+/**
+ * Rendimientos decrecientes: subir de 30 a 40 es una semana, de 85 a 95 es un
+ * mes. Sin esto toda carrera larga termina con todo en 100.
+ */
+function growthFactor(current: number): number {
+  const t = Math.max(0, Math.min(1, current / 100));
+  return Math.max(0.18, 1 - Math.pow(t, 1.9) * 0.86);
 }
 
 export function applyStatDelta(stats: Stats, delta?: Partial<Stats>): Stats {
   if (!delta) return stats;
   const out = { ...stats };
   for (const [k, v] of Object.entries(delta)) {
-    if (typeof v === 'number') out[k] = clampStat((out[k] ?? 0) + v);
+    if (typeof v !== 'number') continue;
+    const current = out[k] ?? 0;
+    // Las pérdidas pegan completas; las ganancias se frenan cerca del techo.
+    const applied = v > 0 && k !== 'money' ? v * growthFactor(current) : v;
+    out[k] = clampStat(current + applied);
   }
   return out;
 }

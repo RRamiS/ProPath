@@ -1,6 +1,5 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   DraftMinigame,
   FarmMinigame,
@@ -8,8 +7,16 @@ import {
   ReactionMinigame,
   VisionMinigame,
 } from './Minigames';
+import {
+  ClutchMinigame,
+  ComboMinigame,
+  DodgeMinigame,
+  InterviewMinigame,
+  NegotiationMinigame,
+} from './extra';
 import { useGameStore } from '../store/gameStore';
-import { colors } from '../ui/theme';
+import { MobaBackdrop } from '../ui/MobaBackdrop';
+import { colors, maxContentWidth, radius, space } from '../ui/theme';
 
 export function MinigameScreen() {
   const mg = useGameStore((s) => s.activeMinigame);
@@ -29,10 +36,10 @@ export function MinigameScreen() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={['#05080C', '#0A1620', '#07120E']} style={StyleSheet.absoluteFill} />
+      <MobaBackdrop intensity="cinematic" stageId={career?.stageId} />
       <View style={styles.bezel} pointerEvents="none" />
-      <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {mg.kind === 'reaction' && <ReactionMinigame {...common} />}
           {mg.kind === 'draft' && (
             <DraftMinigame {...common} roleId={career?.profile.roleId ?? 'mid'} />
@@ -40,6 +47,11 @@ export function MinigameScreen() {
           {mg.kind === 'farm' && <FarmMinigame {...common} />}
           {mg.kind === 'vision' && <VisionMinigame {...common} />}
           {mg.kind === 'focus' && <FocusMinigame {...common} />}
+          {mg.kind === 'combo' && <ComboMinigame {...common} />}
+          {mg.kind === 'dodge' && <DodgeMinigame {...common} />}
+          {mg.kind === 'clutch' && <ClutchMinigame {...common} />}
+          {mg.kind === 'interview' && <InterviewMinigame {...common} />}
+          {mg.kind === 'negotiation' && <NegotiationMinigame {...common} />}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -48,14 +60,21 @@ export function MinigameScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1 },
+  scroll: {
+    paddingBottom: space.xl,
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+  },
   bezel: {
     position: 'absolute',
     top: 8,
     left: 8,
     right: 8,
     bottom: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(61,220,151,0.2)',
-    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: 'rgba(157,123,255,0.22)',
+    borderRadius: radius.md,
   },
 });

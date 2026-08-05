@@ -79,11 +79,6 @@ export function openEvent(pack: ContentPack, state: CareerState): CareerState {
   };
 }
 
-/** @deprecated Preferir openEvent — el turno ya no se incrementa aquí */
-export function advanceToEvent(pack: ContentPack, state: CareerState): CareerState {
-  return openEvent(pack, state);
-}
-
 /**
  * Tras elegir en un evento, volvemos al hub (no encadenamos otro evento).
  */

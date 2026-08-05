@@ -8,23 +8,96 @@ import Animated, {
   withDelay,
   withSpring,
 } from 'react-native-reanimated';
-import { Body, Button, Label, StatBar, Title } from '../ui/components';
+import {
+  Body,
+  Button,
+  Chip,
+  IconBadge,
+  Panel,
+  PopIn,
+  PressCard,
+  SectionHeader,
+  Shutter,
+  StatBar,
+  Tag,
+  Title,
+} from '../ui/components';
+import { EffectChips } from '../ui/effects';
+import { Icon, type IconName } from '../ui/icons';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
 import { CareerHud } from '../ui/CareerHud';
+import { NationBadge } from '../ui/NationBadge';
 import { ShareCard } from '../ui/ShareCard';
-import { colors, fonts, radius, shadow, springs, space } from '../ui/theme';
+import {
+  colors,
+  fonts,
+  maxContentWidth,
+  radius,
+  SKEW,
+  space,
+  springs,
+  tones,
+  UNSKEW,
+  type Tone,
+} from '../ui/theme';
 import { useGameStore } from '../store/gameStore';
 import { RUN_DURATIONS, type RunDurationId } from '../engine';
 
-function Atmosphere({
-  landing = false,
-  stageId,
+function Atmosphere({ landing = false, stageId }: { landing?: boolean; stageId?: string }) {
+  return (
+    <MobaBackdrop
+      intensity={landing ? 'landing' : 'play'}
+      showArt={landing}
+      stageId={stageId}
+    />
+  );
+}
+
+const TIER_TONE: Record<string, Tone> = {
+  legend: 'gold',
+  great: 'accent',
+  ok: 'blue',
+  fail: 'danger',
+};
+
+const TIER_LABEL: Record<string, string> = {
+  legend: 'LEYENDA',
+  great: 'RISING STAR',
+  ok: 'REGIONAL',
+  fail: 'FIN DE CICLO',
+};
+
+/* ------------------------------------------------------------------ home */
+
+function FeatureRow({
+  index,
+  icon,
+  tone,
+  title,
+  copy,
 }: {
-  landing?: boolean;
-  stageId?: string;
+  index: string;
+  icon: IconName;
+  tone: Tone;
+  title: string;
+  copy: string;
 }) {
-  return <MobaBackdrop intensity={landing ? 'landing' : 'play'} showArt={landing} stageId={stageId} />;
+  return (
+    <View style={styles.feature}>
+      <Text style={[styles.featureIndex, { color: tones[tone].fg }]} numberOfLines={1}>
+        {index}
+      </Text>
+      <View style={[styles.featureRule, { backgroundColor: tones[tone].border }]} />
+      <View style={styles.featureText}>
+        <View style={styles.featureTitleRow}>
+          <Icon name={icon} color={tones[tone].fg} size={15} />
+          <Text style={styles.featureTitle}>{title}</Text>
+        </View>
+        <Text style={styles.featureCopy}>{copy}</Text>
+      </View>
+    </View>
+  );
 }
 
 export function HomeScreen() {
@@ -35,28 +108,81 @@ export function HomeScreen() {
     <View style={styles.root}>
       <Atmosphere landing />
       <SafeAreaView style={styles.safe}>
-        <View style={styles.hero}>
+        <ScrollView
+          contentContainerStyle={styles.homeScroll}
+          showsVerticalScrollIndicator={false}
+        >
           <FadeSlide delay={0}>
-            <Text style={styles.brand}>{pack.title}</Text>
+            <Tag label="Simulador de carrera esports" tone="accent" solid />
           </FadeSlide>
+
           <FadeSlide delay={60}>
+            <View style={styles.brandWrap}>
+              <Text style={styles.brand}>{pack.title}</Text>
+              <View style={styles.brandSlab} />
+            </View>
+          </FadeSlide>
+
+          <FadeSlide delay={110}>
             <Text style={styles.tagline}>{pack.subtitle}</Text>
           </FadeSlide>
-          <FadeSlide delay={120}>
-            <Body style={styles.heroCopy}>
-              Hub semanal, partidos live estilo broadcast y relaciones que importan — sin nombres
-              de marcas. Tu carrera, tus manos.
-            </Body>
+
+          <FadeSlide delay={150}>
+            <View style={styles.statStrip}>
+              <View style={styles.statStripItem}>
+                <Text style={styles.statStripNum}>5</Text>
+                <Text style={styles.statStripLabel}>ETAPAS</Text>
+              </View>
+              <View style={styles.statStripDivider} />
+              <View style={styles.statStripItem}>
+                <Text style={styles.statStripNum}>10</Text>
+                <Text style={styles.statStripLabel}>MINIJUEGOS</Text>
+              </View>
+              <View style={styles.statStripDivider} />
+              <View style={styles.statStripItem}>
+                <Text style={styles.statStripNum}>{pack.events.length}</Text>
+                <Text style={styles.statStripLabel}>EVENTOS</Text>
+              </View>
+            </View>
           </FadeSlide>
-          <FadeSlide delay={180} style={styles.ctaBlock}>
+
+          <FadeSlide delay={200} style={styles.featureList}>
+            <FeatureRow
+              index="01"
+              icon="soloq"
+              tone="accent"
+              title="Una semana, una decisión"
+              copy="SoloQ, scrims, VOD, descanso o contenido. Todo tiene precio en forma y fatiga."
+            />
+            <FeatureRow
+              index="02"
+              icon="match"
+              tone="danger"
+              title="Partidos en vivo"
+              copy="Cuatro fases jugables y un desglose que te dice exactamente por qué ganaste."
+            />
+            <FeatureRow
+              index="03"
+              icon="scrim"
+              tone="blue"
+              title="Gente que se acuerda"
+              copy="Coach, duo, rival y manager cambian los eventos según cómo los tratás."
+            />
+          </FadeSlide>
+
+          <FadeSlide delay={280} style={styles.ctaBlock}>
             <Button label="Empezar carrera" onPress={() => setScreen('create')} />
-            <Text style={styles.micro}>Semanas · Match day · Finales</Text>
+            <Text style={styles.micro}>
+              {RUN_DURATIONS.map((d) => d.label).join(' · ')} — vos elegís el largo
+            </Text>
           </FadeSlide>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
 }
+
+/* ---------------------------------------------------------------- create */
 
 export function CreateScreen() {
   const pack = useGameStore((s) => s.pack);
@@ -65,6 +191,7 @@ export function CreateScreen() {
   const startCareer = useGameStore((s) => s.startCareer);
   const setScreen = useGameStore((s) => s.setScreen);
   const nation = pack.nations.find((n) => n.id === draft.nationId);
+  const role = pack.roles.find((r) => r.id === draft.roleId);
 
   return (
     <View style={styles.root}>
@@ -77,27 +204,39 @@ export function CreateScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <FadeSlide>
-            <Title>Tu jugador</Title>
+            <Tag label="Nuevo prospecto" tone="accent" solid />
+            <Title style={styles.createTitle}>Tu jugador</Title>
             <Body style={styles.intro}>
-              Duración, nacionalidad y rol definen el arco de la carrera.
+              Duración, nacionalidad y rol definen el arco completo de la carrera.
             </Body>
           </FadeSlide>
 
-          <Label>Duración</Label>
-          <Body style={styles.inlineHint}>Ni muy corta ni infinita — vos elegís el ritmo.</Body>
-          {RUN_DURATIONS.map((d, i) => (
-            <FadeSlide key={d.id} delay={i * 40}>
-              <Button
-                variant="choice"
-                selected={draft.durationId === d.id}
-                label={`${d.label}  ·  ${d.maxTurns} semanas`}
-                hint={`${d.minutesHint} — ${d.blurb}`}
-                onPress={() => setDraft({ durationId: d.id as RunDurationId })}
-              />
-            </FadeSlide>
-          ))}
+          <SectionHeader eyebrow="Paso 01" title="Duración" />
+          <View style={styles.gridTwo}>
+            {RUN_DURATIONS.map((d, i) => {
+              const on = draft.durationId === d.id;
+              return (
+                <FadeSlide key={d.id} delay={i * 40} style={styles.gridItem}>
+                  <PressCard
+                    tone={on ? 'accent' : undefined}
+                    selected={on}
+                    onPress={() => setDraft({ durationId: d.id as RunDurationId })}
+                    style={styles.durationCard}
+                  >
+                    <Text style={[styles.durationWeeks, on && { color: colors.accent }]}>
+                      {d.maxTurns}
+                    </Text>
+                    <Text style={[styles.durationLabel, on && { color: colors.text }]}>
+                      {d.label}
+                    </Text>
+                    <Text style={styles.durationHint}>{d.minutesHint}</Text>
+                  </PressCard>
+                </FadeSlide>
+              );
+            })}
+          </View>
 
-          <Label>Nombre</Label>
+          <SectionHeader eyebrow="Paso 02" title="Nombre" tone="blue" />
           <TextInput
             value={draft.name}
             onChangeText={(name) => setDraft({ name })}
@@ -105,31 +244,52 @@ export function CreateScreen() {
             placeholderTextColor={colors.faint}
             style={styles.input}
             autoCorrect={false}
+            maxLength={16}
           />
 
-          <Label>Nacionalidad</Label>
-          <Body style={styles.inlineHint}>Cambia región, visas, plata y eventos.</Body>
-          {pack.nations.map((n, i) => (
-            <FadeSlide key={n.id} delay={i * 30}>
-              <Button
-                variant="choice"
-                selected={draft.nationId === n.id}
-                label={`${n.flag}  ${n.name}`}
-                onPress={() => setDraft({ nationId: n.id })}
-              />
-            </FadeSlide>
-          ))}
+          <SectionHeader
+            eyebrow="Paso 03"
+            title="Nacionalidad"
+            tone="violet"
+            right={<Tag label="Región y visas" tone="muted" />}
+          />
+          <View style={styles.gridTwo}>
+            {pack.nations.map((n, i) => {
+              const on = draft.nationId === n.id;
+              return (
+                <FadeSlide key={n.id} delay={i * 25} style={styles.gridItem}>
+                  <PressCard
+                    tone={on ? 'violet' : undefined}
+                    selected={on}
+                    onPress={() => setDraft({ nationId: n.id })}
+                    style={styles.nationCard}
+                  >
+                    <NationBadge nationId={n.id} tone={on ? 'violet' : 'muted'} solid={on} />
+                    <Text
+                      style={[styles.nationName, on && { color: colors.violet }]}
+                      numberOfLines={1}
+                    >
+                      {n.name}
+                    </Text>
+                  </PressCard>
+                </FadeSlide>
+              );
+            })}
+          </View>
           {nation ? (
-            <View style={styles.nationCard}>
-              <Text style={styles.nationBlurb}>{nation.blurb}</Text>
-            </View>
+            <Shutter>
+              <Panel tone="violet" glow label={nation.name} style={styles.selectionNote}>
+                <Text style={styles.selectionNoteText}>{nation.blurb}</Text>
+              </Panel>
+            </Shutter>
           ) : null}
 
-          <Label>Rol</Label>
+          <SectionHeader eyebrow="Paso 04" title="Rol" tone="gold" />
           {pack.roles.map((r, i) => (
-            <FadeSlide key={r.id} delay={i * 30}>
+            <FadeSlide key={r.id} delay={i * 25}>
               <Button
                 variant="choice"
+                tone="gold"
                 selected={draft.roleId === r.id}
                 label={r.name}
                 hint={r.description}
@@ -137,6 +297,20 @@ export function CreateScreen() {
               />
             </FadeSlide>
           ))}
+
+          <Panel label="Resumen" tone="accent" style={styles.summary}>
+            <View style={styles.summaryChips}>
+              <Chip label={draft.name?.trim() || 'Prodigy'} tone="accent" />
+              <Chip label={nation?.name ?? '—'} tone="violet" />
+              <Chip label={role?.name ?? '—'} tone="gold" />
+              <Chip
+                label={
+                  RUN_DURATIONS.find((d) => d.id === draft.durationId)?.label ?? 'Estándar'
+                }
+                tone="blue"
+              />
+            </View>
+          </Panel>
 
           <View style={styles.row}>
             <View style={styles.rowBtn}>
@@ -152,18 +326,21 @@ export function CreateScreen() {
   );
 }
 
+/* ------------------------------------------------------------------ play */
+
 export function PlayScreen() {
   const pack = useGameStore((s) => s.pack);
   const career = useGameStore((s) => s.career);
   const choose = useGameStore((s) => s.choose);
   const enterMinigame = useGameStore((s) => s.enterMinigame);
+  const reset = useGameStore((s) => s.reset);
 
   if (!career || !career.currentEventId) {
     return (
       <View style={styles.root}>
         <Atmosphere stageId={career?.stageId} />
         <SafeAreaView style={styles.safe}>
-          <Body style={{ padding: 24 }}>Cargando evento…</Body>
+          <Body style={styles.pad}>Cargando evento…</Body>
         </SafeAreaView>
       </View>
     );
@@ -175,10 +352,14 @@ export function PlayScreen() {
     return (
       <View style={styles.root}>
         <Atmosphere stageId={career.stageId} />
-        <Body style={{ padding: 24 }}>Evento no encontrado.</Body>
+        <SafeAreaView style={styles.safe}>
+          <Body style={styles.pad}>Evento no encontrado.</Body>
+        </SafeAreaView>
       </View>
     );
   }
+
+  const last = career.lastMatch;
 
   return (
     <View style={styles.root}>
@@ -190,19 +371,20 @@ export function PlayScreen() {
           showsVerticalScrollIndicator={false}
         >
           <FadeSlide key={`${career.currentEventId}-${career.turn}`}>
-            <CareerHud career={career} pack={pack} compact />
+            <CareerHud career={career} pack={pack} compact onExit={reset} />
 
-            {career.lastMatch ? (
-              <View style={styles.matchChip}>
-                <Text style={styles.matchChipText}>
-                  Último: {career.lastMatch.won ? 'W' : 'L'} vs {career.lastMatch.opponent} ·{' '}
-                  {career.lastMatch.kills}/{career.lastMatch.deaths}/{career.lastMatch.assists}
-                  {career.lastMatch.mvp ? ' · MVP' : ''}
-                </Text>
+            {last ? (
+              <View style={styles.lastMatchRow}>
+                <Chip
+                  label={`${last.won ? 'VICTORIA' : 'DERROTA'} vs ${last.opponent}`}
+                  tone={last.won ? 'accent' : 'danger'}
+                />
+                <Chip label={`${last.kills}/${last.deaths}/${last.assists}`} tone="muted" />
+                {last.mvp ? <Chip label="MVP" tone="gold" /> : null}
               </View>
             ) : null}
 
-            <View style={[styles.statsCard, shadow]}>
+            <Panel label="Atributos" style={styles.statsCard}>
               {Object.entries(pack.statLabels).map(([id, label], i) => (
                 <StatBar
                   key={`${id}-${career.turn}`}
@@ -211,35 +393,38 @@ export function PlayScreen() {
                   delay={i * 30}
                 />
               ))}
-            </View>
+            </Panel>
 
-            <View style={styles.eventBlock}>
-              <Text style={styles.eventEyebrow}>
-                {event.minigame ? 'Skill check disponible' : 'Momento de la semana'}
-              </Text>
-              <Title style={{ fontSize: 24 }}>{event.title}</Title>
-              <Body style={{ marginTop: 10, marginBottom: 18 }}>{event.body}</Body>
+            <SectionHeader
+              eyebrow={event.minigame ? 'Skill check disponible' : 'Momento de la semana'}
+              title={event.title}
+              tone={event.minigame ? 'gold' : 'accent'}
+            />
+            <Body style={styles.eventBody}>{event.body}</Body>
 
-              {event.minigame ? (
-                <View style={styles.skillCard}>
+            {event.minigame ? (
+              <Panel tone="gold" glow label="Skill check" style={styles.skillCard}>
+                <View style={styles.skillHead}>
+                  <Icon name="spark" color={colors.gold} size={18} />
                   <Text style={styles.skillTitle}>{event.minigame.title}</Text>
-                  <Text style={styles.skillBlurb}>{event.minigame.blurb}</Text>
-                  <Button label="Jugar minijuego" onPress={enterMinigame} />
-                  <Text style={styles.orSkip}>o elegí una decisión de texto abajo</Text>
                 </View>
-              ) : null}
+                <Text style={styles.skillBlurb}>{event.minigame.blurb}</Text>
+                <Button label="Jugar minijuego" tone="gold" onPress={enterMinigame} />
+                <Text style={styles.orSkip}>o resolvelo con una decisión de abajo</Text>
+              </Panel>
+            ) : null}
 
-              {event.choices.map((c, i) => (
-                <FadeSlide key={c.id} delay={i * 45}>
-                  <Button
-                    variant="choice"
-                    label={c.label}
-                    hint={c.hint}
-                    onPress={() => choose(c.id)}
-                  />
-                </FadeSlide>
-              ))}
-            </View>
+            {event.choices.map((c, i) => (
+              <FadeSlide key={c.id} delay={i * 45}>
+                <PressCard onPress={() => choose(c.id)} style={styles.choiceCard}>
+                  <Text style={styles.choiceLabel}>{c.label}</Text>
+                  {c.hint ? <Text style={styles.choiceHint}>{c.hint}</Text> : null}
+                  <View style={styles.choiceChips}>
+                    <EffectChips effect={c.effect} statLabels={pack.statLabels} />
+                  </View>
+                </PressCard>
+              </FadeSlide>
+            ))}
           </FadeSlide>
         </ScrollView>
       </SafeAreaView>
@@ -247,12 +432,15 @@ export function PlayScreen() {
   );
 }
 
+/* ---------------------------------------------------------------- ending */
+
 export function EndingScreen() {
   const pack = useGameStore((s) => s.pack);
   const career = useGameStore((s) => s.career);
   const reset = useGameStore((s) => s.reset);
   const ending = pack.endings.find((e) => e.id === career?.endingId);
   const reveal = useSharedValue(0);
+  const tone = TIER_TONE[ending?.tier ?? 'ok'] ?? 'accent';
 
   useEffect(() => {
     reveal.value = withDelay(80, withSpring(1, springs.soft));
@@ -270,21 +458,26 @@ export function EndingScreen() {
     <View style={styles.root}>
       <Atmosphere stageId={career?.stageId} />
       <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.endingScroll} showsVerticalScrollIndicator={false}>
-          <Animated.View style={[styles.hero, cardStyle]}>
-            <Text style={styles.endingTier}>
-              {ending?.tier === 'legend'
-                ? 'LEYENDA'
-                : ending?.tier === 'great'
-                  ? 'RISING'
-                  : ending?.tier === 'ok'
-                    ? 'REGIONAL'
-                    : 'FIN'}
-            </Text>
-            <Text style={[styles.brand, styles.endingTitle]}>{ending?.title ?? 'Fin'}</Text>
-            <Body style={styles.heroCopy}>{ending?.body}</Body>
+        <ScrollView
+          contentContainerStyle={styles.endingScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={cardStyle}>
+            <PopIn>
+              <View style={styles.endingHead}>
+                <IconBadge name="trophy" tone={tone} size={44} />
+                <View style={[styles.endingTierTab, { backgroundColor: tones[tone].fg }]}>
+                  <Text style={styles.endingTierText}>{TIER_LABEL[ending?.tier ?? 'ok']}</Text>
+                </View>
+              </View>
+            </PopIn>
+
+            <Text style={styles.endingTitle}>{ending?.title ?? 'Fin'}</Text>
+            <Body style={styles.endingBody}>{ending?.body}</Body>
+
             {career ? <ShareCard career={career} pack={pack} ending={ending} /> : null}
-            <Text style={styles.micro}>Screenshot la tarjeta para compartir</Text>
+            <Text style={styles.micro}>Sacale screenshot a la tarjeta para compartirla</Text>
+
             <View style={styles.endingCta}>
               <Button label="Nueva carrera" onPress={reset} />
             </View>
@@ -295,57 +488,183 @@ export function EndingScreen() {
   );
 }
 
+/* ---------------------------------------------------------------- styles */
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   scrollFlex: { flex: 1 },
-  hero: {
-    flex: 1,
-    paddingHorizontal: space.lg,
-    justifyContent: 'center',
-  },
+  pad: { padding: space.lg },
   scroll: {
     paddingHorizontal: space.lg,
     paddingTop: space.md,
     paddingBottom: space.xxl,
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+  },
+
+  /* home */
+  homeScroll: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.lg,
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+  },
+  brandWrap: {
+    marginTop: 16,
+    marginBottom: 12,
+    alignSelf: 'flex-start',
   },
   brand: {
-    color: colors.accent,
-    fontSize: 48,
-    lineHeight: 54,
+    color: colors.text,
+    fontSize: 58,
+    lineHeight: 62,
     fontFamily: fonts.display,
-    letterSpacing: -1.4,
-    marginBottom: 10,
+    letterSpacing: -3,
+    textTransform: 'uppercase',
   },
-  endingTitle: {
-    fontSize: 40,
-    lineHeight: 46,
+  brandSlab: {
+    height: 8,
+    backgroundColor: colors.accent,
+    marginTop: -4,
+    transform: [{ skewX: SKEW }],
   },
   tagline: {
     color: colors.text,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 18,
+    lineHeight: 25,
     fontFamily: fonts.displaySemi,
     letterSpacing: -0.3,
-    marginBottom: 12,
-  },
-  heroCopy: {
     maxWidth: 420,
-    marginBottom: 8,
   },
-  intro: {
-    marginTop: 8,
-    marginBottom: 4,
+  statStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: space.lg,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: 12,
   },
-  ctaBlock: {
-    marginTop: space.md,
+  statStripItem: { flex: 1 },
+  statStripNum: {
+    color: colors.accent,
+    fontFamily: fonts.display,
+    fontSize: 24,
+    letterSpacing: -1,
   },
+  statStripLabel: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.4,
+    marginTop: 2,
+  },
+  statStripDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: colors.line,
+    marginHorizontal: 12,
+  },
+  featureList: { marginTop: space.lg, gap: 16 },
+  feature: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  featureIndex: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    letterSpacing: 0,
+    minWidth: 26,
+    paddingTop: 2,
+  },
+  featureRule: {
+    width: 2,
+    alignSelf: 'stretch',
+    marginRight: 2,
+  },
+  featureText: { flex: 1 },
+  featureTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  featureTitle: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+  },
+  featureCopy: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  ctaBlock: { marginTop: space.xl },
   micro: {
     color: colors.faint,
     fontSize: 12,
     fontFamily: fonts.bodyMedium,
     textAlign: 'center',
     marginTop: 12,
+  },
+
+  /* create */
+  createTitle: { marginTop: 12 },
+  intro: { marginTop: 8, marginBottom: 8 },
+  gridTwo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  gridItem: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 104,
+  },
+  durationCard: { height: '100%', gap: 1 },
+  durationWeeks: {
+    color: colors.muted,
+    fontFamily: fonts.display,
+    fontSize: 26,
+    letterSpacing: -1.2,
+  },
+  durationLabel: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+  },
+  durationHint: {
+    color: colors.faint,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  nationCard: {
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  nationName: {
+    color: colors.text,
+    fontFamily: fonts.bodySemi,
+    fontSize: 13,
+    flex: 1,
+  },
+  selectionNote: { marginTop: 12, paddingVertical: 12 },
+  selectionNoteText: {
+    color: colors.violet,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: fonts.bodyMedium,
   },
   input: {
     backgroundColor: colors.bgCard,
@@ -357,173 +676,49 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     fontFamily: fonts.bodyMedium,
-    marginBottom: 4,
     width: '100%',
   },
-  inlineHint: { marginBottom: 10, marginTop: -4 },
-  nationCard: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.md,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(61,220,151,0.25)',
-  },
-  nationBlurb: {
-    color: colors.accent,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: fonts.bodyMedium,
+  summary: { marginTop: space.xl },
+  summaryChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   row: {
     flexDirection: 'row',
     marginTop: space.lg,
+    gap: 12,
   },
-  rowBtn: { flex: 1, marginRight: 6 },
-  rowBtnPrimary: { flex: 1.2, marginLeft: 6 },
-  topMeta: { marginBottom: 14 },
-  metaPrimary: {
-    color: colors.text,
-    fontSize: 15,
-    fontFamily: fonts.bodyBold,
-    marginBottom: 4,
+  rowBtn: { flex: 1 },
+  rowBtnPrimary: { flex: 1.3 },
+
+  /* play */
+  lastMatchRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
   },
-  metaSecondary: {
-    color: colors.muted,
-    fontSize: 12,
-    fontFamily: fonts.bodyMedium,
-    letterSpacing: 0.3,
-  },
-  statsCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.line,
-    marginBottom: 18,
-  },
-  eventBlock: { marginTop: 4 },
-  eventEyebrow: {
-    color: colors.accent,
-    fontSize: 11,
-    fontFamily: fonts.bodyBold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
-  endingTier: {
-    color: colors.gold,
-    fontSize: 12,
-    fontFamily: fonts.bodyBold,
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  endingStats: { marginTop: 8 },
-  endingCta: { marginTop: space.md },
-  endingScroll: {
-    flexGrow: 1,
-    paddingHorizontal: space.lg,
-    paddingVertical: space.lg,
-    justifyContent: 'center',
-  },
-  matchChip: {
-    backgroundColor: 'rgba(232,197,107,0.1)',
-    borderRadius: radius.sm,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(232,197,107,0.28)',
-  },
-  matchChipText: {
-    color: colors.gold,
-    fontFamily: fonts.bodySemi,
-    fontSize: 12,
-  },
-  notice: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.md,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(61,220,151,0.28)',
-  },
-  noticeText: {
-    color: colors.accent,
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: fonts.bodySemi,
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 120,
-  },
-  cornerTL: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    width: 28,
-    height: 28,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-    borderColor: 'rgba(61,220,151,0.45)',
-  },
-  cornerBR: {
-    position: 'absolute',
-    bottom: 12,
-    right: 12,
-    width: 28,
-    height: 28,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-    borderColor: 'rgba(61,220,151,0.45)',
-  },
-  livePill: {
+  statsCard: { marginBottom: 20, paddingBottom: 8 },
+  eventBody: { marginBottom: 18 },
+  skillCard: { marginBottom: 18 },
+  skillHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,107,122,0.15)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 12,
-  },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 99,
-    backgroundColor: colors.danger,
-    marginRight: 6,
-  },
-  liveText: {
-    color: colors.danger,
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 1.2,
-  },
-  skillCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radius.lg,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(232,197,107,0.35)',
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 6,
   },
   skillTitle: {
     color: colors.gold,
-    fontFamily: fonts.displaySemi,
-    fontSize: 18,
-    marginBottom: 6,
+    fontFamily: fonts.display,
+    fontSize: 17,
+    letterSpacing: -0.4,
   },
   skillBlurb: {
     color: colors.muted,
     fontFamily: fonts.body,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
     marginBottom: 14,
   },
   orSkip: {
@@ -533,4 +728,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
   },
+  choiceCard: { marginBottom: 10, gap: 6 },
+  choiceLabel: {
+    color: colors.text,
+    fontFamily: fonts.bodySemi,
+    fontSize: 15,
+  },
+  choiceHint: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  choiceChips: { marginTop: 2 },
+
+  /* ending */
+  endingScroll: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.lg,
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+  },
+  endingHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  endingTierTab: {
+    paddingHorizontal: 11,
+    paddingVertical: 4,
+    transform: [{ skewX: SKEW }],
+  },
+  endingTierText: {
+    color: colors.bg,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 2,
+    transform: [{ skewX: UNSKEW }],
+  },
+  endingTitle: {
+    color: colors.text,
+    fontSize: 38,
+    lineHeight: 44,
+    fontFamily: fonts.display,
+    letterSpacing: -1.6,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  endingBody: { maxWidth: 440 },
+  endingCta: { marginTop: space.md },
 });

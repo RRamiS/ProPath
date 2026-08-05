@@ -3,6 +3,7 @@ import {
   applyChoice,
   applyWeekActivity,
   createCareer,
+  maybePromote,
   openEvent,
   type CareerState,
   type ContentPack,
@@ -17,9 +18,14 @@ import { resolveMatch } from '../match/simulate';
 
 type Screen = 'home' | 'create' | 'weekHub' | 'play' | 'match' | 'minigame' | 'ending';
 
+/** El partido tiene fases interactivas y luego la pantalla de resultado. */
+type MatchPhase = 'live' | 'result';
+
 export type CinematicPayload = {
   title: string;
   subtitle?: string;
+  /** Líneas que el jugador avanza tocando; reemplazan al subtítulo. */
+  beats?: string[];
   vibe: 'kickoff' | 'promote' | 'skill' | 'ending' | 'match';
   durationMs?: number;
 };
@@ -31,11 +37,13 @@ interface GameStore {
   draft: Partial<PlayerProfile>;
   activeMinigame: EventMinigame | null;
   cinematic: CinematicPayload | null;
+  matchPhase: MatchPhase;
   setScreen: (s: Screen) => void;
   setDraft: (p: Partial<PlayerProfile>) => void;
   startCareer: () => void;
   pickActivity: (activityId: WeekActivityId) => void;
   resolveLiveMatch: (choices: string[], opponent: string) => void;
+  continueAfterMatch: () => void;
   choose: (choiceId: string) => void;
   enterMinigame: () => void;
   completeMinigame: (grade: MinigameGrade) => void;
@@ -60,11 +68,28 @@ function maybePromotionCinematic(
   next: CareerState
 ): CinematicPayload | null {
   if (prev.stageId === next.stageId) return null;
+  const label = stageLabel(pack, next.stageId);
   return {
     vibe: 'promote',
-    title: stageLabel(pack, next.stageId),
-    subtitle: next.lastNotice ?? 'Subís de nivel en el circuito.',
-    durationMs: 2800,
+    title: label,
+    beats: [
+      next.lastNotice ?? 'El circuito te abre la puerta.',
+      `Nuevo escenario: ${label}. Los rivales ya no fallan las que fallabas vos.`,
+      `Semana ${next.turn} · ${next.wins}V–${next.losses}D. A partir de acá, cada serie pesa.`,
+    ],
+  };
+}
+
+function endingCinematic(pack: ContentPack, next: CareerState): CinematicPayload {
+  const ending = pack.endings.find((e) => e.id === next.endingId);
+  return {
+    vibe: 'ending',
+    title: ending?.title ?? 'Fin',
+    beats: [
+      ending?.body ?? 'Se cierra el ciclo.',
+      `Cerraste con ${next.wins}V–${next.losses}D en ${next.turn} semanas.`,
+    ],
+    durationMs: 999999,
   };
 }
 
@@ -82,6 +107,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   draft: { ...defaultDraft },
   activeMinigame: null,
   cinematic: null,
+  matchPhase: 'live',
 
   setScreen: (screen) => set({ screen }),
 
@@ -104,11 +130,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       career,
       screen: 'weekHub',
       activeMinigame: null,
+      matchPhase: 'live',
       cinematic: {
         vibe: 'kickoff',
         title: `${career.profile.name} entra al grind`,
-        subtitle: `${nation?.flag ?? ''} ${nation?.name ?? ''} · ${draft.roleId?.toUpperCase()} · ${durationId}`,
-        durationMs: 3000,
+        beats: [
+          `${nation?.name ?? ''} · ${draft.roleId?.toUpperCase()}. Nadie te conoce todavía.`,
+          'Cada semana elegís una sola cosa: entrenar, competir o cuidar la cabeza.',
+          'Nada es gratis. La forma sube, la fatiga también.',
+        ],
       },
     });
   },
@@ -120,17 +150,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     let next = outcome.state;
 
     if (outcome.kind === 'ending') {
-      const ending = pack.endings.find((e) => e.id === next.endingId);
-      set({
-        career: next,
-        screen: 'ending',
-        cinematic: {
-          vibe: 'ending',
-          title: ending?.title ?? 'Fin',
-          subtitle: ending?.body,
-          durationMs: 999999,
-        },
-      });
+      set({ career: next, screen: 'ending', cinematic: endingCinematic(pack, next) });
       return;
     }
 
@@ -140,6 +160,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         career: next,
         screen: 'match',
+        matchPhase: 'live',
         cinematic:
           promo ??
           ({
@@ -153,46 +174,31 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     next = openEvent(pack, next);
-    set({
-      career: next,
-      screen: 'play',
-      cinematic: promo,
-    });
+    set({ career: next, screen: 'play', cinematic: promo });
   },
 
+  /** Cierra las fases interactivas y deja la pantalla de resultado del partido. */
   resolveLiveMatch: (choices, opponent) => {
-    const { pack, career } = get();
+    const { career } = get();
     if (!career) return;
     const { state: afterMatch } = resolveMatch(career, choices, opponent);
-    let next = openEvent(pack, { ...afterMatch, phase: 'event' });
-    const promo = maybePromotionCinematic(pack, career, next);
-    const ending = pack.endings.find((e) => e.id === next.endingId);
+    set({ career: afterMatch, screen: 'match', matchPhase: 'result' });
+  },
 
-    if (next.endingId) {
-      set({
-        career: next,
-        screen: 'ending',
-        cinematic: {
-          vibe: 'ending',
-          title: ending?.title ?? 'Fin',
-          subtitle: ending?.body,
-          durationMs: 999999,
-        },
-      });
-      return;
-    }
+  /** Del resultado del partido al evento narrativo de esa semana. */
+  continueAfterMatch: () => {
+    const { pack, career } = get();
+    if (!career) return;
+
+    const promoted = maybePromote({ ...career, phase: 'event' });
+    const promo = maybePromotionCinematic(pack, career, promoted);
+    const next = openEvent(pack, promoted);
 
     set({
       career: next,
-      screen: 'play',
-      cinematic:
-        promo ??
-        ({
-          vibe: 'match',
-          title: next.lastMatch?.won ? 'VICTORIA' : 'DERROTA',
-          subtitle: next.lastNotice ?? undefined,
-          durationMs: 2000,
-        } as CinematicPayload),
+      screen: routeAfterCareer(next),
+      matchPhase: 'live',
+      cinematic: next.endingId ? endingCinematic(pack, next) : promo,
     });
   },
 
@@ -201,20 +207,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!career) return;
     const next = applyChoice(pack, career, choiceId);
     const promo = maybePromotionCinematic(pack, career, next);
-    const ending = pack.endings.find((e) => e.id === next.endingId);
 
     set({
       career: next,
       activeMinigame: null,
       screen: routeAfterCareer(next),
-      cinematic: next.endingId
-        ? {
-            vibe: 'ending',
-            title: ending?.title ?? 'Fin',
-            subtitle: ending?.body,
-            durationMs: 999999,
-          }
-        : promo,
+      cinematic: next.endingId ? endingCinematic(pack, next) : promo,
     });
   },
 
@@ -240,20 +238,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!career) return;
     const next = applyMinigameResult(pack, career, grade);
     const promo = maybePromotionCinematic(pack, career, next);
-    const ending = pack.endings.find((e) => e.id === next.endingId);
 
     set({
       career: next,
       activeMinigame: null,
       screen: routeAfterCareer(next),
-      cinematic: next.endingId
-        ? {
-            vibe: 'ending',
-            title: ending?.title ?? 'Fin',
-            subtitle: ending?.body,
-            durationMs: 999999,
-          }
-        : promo,
+      cinematic: next.endingId ? endingCinematic(pack, next) : promo,
     });
   },
 
@@ -264,5 +254,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       draft: { ...defaultDraft },
       activeMinigame: null,
       cinematic: null,
+      matchPhase: 'live',
     }),
 }));

@@ -83,7 +83,17 @@ export interface Choice {
   requireFlags?: Flags;
 }
 
-export type MinigameKind = 'reaction' | 'draft' | 'farm' | 'vision' | 'focus';
+export type MinigameKind =
+  | 'reaction'
+  | 'draft'
+  | 'farm'
+  | 'vision'
+  | 'focus'
+  | 'combo'
+  | 'dodge'
+  | 'clutch'
+  | 'interview'
+  | 'negotiation';
 
 export interface EventMinigame {
   kind: MinigameKind;
@@ -144,6 +154,12 @@ export interface Relations {
   manager: number;
 }
 
+/** Un factor que empujó el resultado, para que el jugador entienda por qué. */
+export interface MatchFactor {
+  label: string;
+  value: number;
+}
+
 export interface MatchResult {
   won: boolean;
   kills: number;
@@ -153,6 +169,7 @@ export interface MatchResult {
   opponent: string;
   scoreLine: string;
   highlights: string[];
+  factors: MatchFactor[];
 }
 
 export type CareerPhase = 'hub' | 'event' | 'match';
@@ -182,4 +199,6 @@ export interface CareerState {
   ticker: string[];
   wins: number;
   losses: number;
+  /** Objetivos de temporada ya cobrados */
+  claimedObjectives: string[];
 }

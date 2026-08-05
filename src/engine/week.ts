@@ -1,57 +1,104 @@
 import { applyStatDelta, nextRng } from './createCareer';
+import { claimObjectives } from './objectives';
 import { maybePromote, resolveEnding } from './progression';
 import type {
   CareerState,
   ContentPack,
   Relations,
+  Stats,
   WeekActivityId,
 } from './types';
 
 export interface WeekActivity {
   id: WeekActivityId;
   label: string;
-  hint: string;
+  blurb: string;
+  stats: Partial<Stats>;
+  /** Delta de forma competitiva */
+  form: number;
+  /** Delta de fatiga */
+  fatigue: number;
+  relations: Partial<Relations>;
+  notice: string;
   /** Solo visible desde cierta etapa */
   minStageOrder?: number;
 }
 
+/**
+ * Tabla única de actividades: el motor la aplica y la UI la lee para mostrar
+ * los efectos, así no pueden desincronizarse.
+ */
 export const WEEK_ACTIVITIES: WeekActivity[] = [
   {
     id: 'soloq',
     label: 'Grind SoloQ',
-    hint: '+mecánicas · +forma · +fatiga',
+    blurb: 'Horas de ranked en silencio. Sube las manos, castiga la cabeza.',
+    stats: { mechanics: 4, gameSense: 2, mentality: -2 },
+    form: 3,
+    fatigue: 9,
+    relations: { rival: 2 },
+    notice: 'Semana de SoloQ: manos calientes, cabeza cargada.',
   },
   {
     id: 'scrim',
     label: 'Scrims de team',
-    hint: '+teamplay · +confianza coach/duo',
+    blurb: 'Bloques con el roster. Construye teamplay y confianza.',
+    stats: { teamwork: 5, gameSense: 2, mechanics: 2 },
+    form: 2,
+    fatigue: 11,
+    relations: { coach: 3, duo: 4 },
+    notice: 'Scrims densos. El roster respira junto.',
     minStageOrder: 2,
   },
   {
     id: 'vod',
     label: 'VOD / lab',
-    hint: '+game sense · baja un poco fatiga mental',
+    blurb: 'Frame por frame con el coach. Menos ego, más lectura.',
+    stats: { gameSense: 6, mentality: 2 },
+    form: 0,
+    fatigue: -4,
+    relations: { coach: 3 },
+    notice: 'Lab de VOD: menos ego, más pattern recognition.',
   },
   {
     id: 'rest',
     label: 'Descansar',
-    hint: '−fatiga · +mentalidad · −forma leve',
+    blurb: 'Dormir, entrenar, desconectar. La forma baja, la mente vuelve.',
+    stats: { mentality: 7, mechanics: -1 },
+    form: -2,
+    fatigue: -22,
+    relations: {},
+    notice: 'Recovery. El body clock agradece.',
   },
   {
     id: 'content',
     label: 'Contenido / marca',
-    hint: '+reputación · +plata · −teamplay',
+    blurb: 'Clips, stream y sponsors. Suma plata; el team mira el reloj.',
+    stats: { reputation: 6, money: 5, teamwork: -3 },
+    form: 0,
+    fatigue: 5,
+    relations: { manager: 4, duo: -1 },
+    notice: 'Contenido out. La marca suma; el team mira el reloj.',
   },
   {
     id: 'match',
     label: 'Día de partido',
-    hint: 'Partido live · broadcast',
+    blurb: 'Serie oficial con público. Cuatro fases, todo en vivo.',
+    stats: {},
+    form: 1,
+    fatigue: 6,
+    relations: {},
+    notice: 'Día de partido. Draft room en 3…',
     minStageOrder: 2,
   },
 ];
 
 function clamp(n: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+export function getActivity(id: WeekActivityId): WeekActivity {
+  return WEEK_ACTIVITIES.find((a) => a.id === id) ?? WEEK_ACTIVITIES[0]!;
 }
 
 export function availableActivities(state: CareerState, pack: ContentPack): WeekActivity[] {
@@ -78,17 +125,17 @@ function tickerFor(activity: WeekActivityId, state: CareerState): string[] {
   ];
   switch (activity) {
     case 'soloq':
-      return [`${name} farmea LP en silence`, ...base];
+      return [`${name} farmea LP en silencio`, ...base];
     case 'scrim':
-      return [`Bloque de scrims · coach Marek en voice`, ...base];
+      return ['Bloque de scrims · coach Marek en voice', ...base];
     case 'vod':
-      return [`Sala de VOD · frame por frame`, ...base];
+      return ['Sala de VOD · frame por frame', ...base];
     case 'rest':
-      return [`Día off · recovery protocol`, ...base];
+      return ['Día off · recovery protocol', ...base];
     case 'content':
-      return [`Clip subiendo · comunidad activa`, ...base];
+      return ['Clip subiendo · comunidad activa', ...base];
     case 'match':
-      return [`MATCH DAY · luces en la arena`, `${name} en el draft room`];
+      return ['MATCH DAY · luces en la arena', `${name} en el draft room`];
     default:
       return base;
   }
@@ -101,7 +148,7 @@ export type WeekOutcome =
 
 /**
  * El jugador elige cómo gastar la semana.
- * Puede ir a partido live o a evento narrativo.
+ * Puede derivar en partido live o en evento narrativo.
  */
 export function applyWeekActivity(
   pack: ContentPack,
@@ -117,59 +164,22 @@ export function applyWeekActivity(
     return r.value;
   };
 
-  let stats = { ...state.stats };
-  let form = state.form;
-  let fatigue = state.fatigue;
-  let relations = { ...state.relations };
-  let notice: string | null = null;
+  const activity = getActivity(activityId);
 
-  switch (activityId) {
-    case 'soloq':
-      stats = applyStatDelta(stats, { mechanics: 4, gameSense: 2, mentality: -2 });
-      form = clamp(form + 3);
-      fatigue = clamp(fatigue + 9);
-      relations = applyRelations(relations, { rival: 2 });
-      notice = 'Semana de SoloQ: manos calientes, cabeza cargada.';
-      break;
-    case 'scrim':
-      stats = applyStatDelta(stats, { teamwork: 5, gameSense: 2, mechanics: 2 });
-      form = clamp(form + 2);
-      fatigue = clamp(fatigue + 11);
-      relations = applyRelations(relations, { coach: 3, duo: 4 });
-      notice = 'Scrims densos. El roster respira junto.';
-      break;
-    case 'vod':
-      stats = applyStatDelta(stats, { gameSense: 6, mentality: 2 });
-      fatigue = clamp(fatigue - 4);
-      relations = applyRelations(relations, { coach: 3 });
-      notice = 'Lab de VOD: menos ego, más pattern recognition.';
-      break;
-    case 'rest':
-      stats = applyStatDelta(stats, { mentality: 7, mechanics: -1 });
-      form = clamp(form - 2);
-      fatigue = clamp(fatigue - 22);
-      notice = 'Recovery. El body clock agradece.';
-      break;
-    case 'content':
-      stats = applyStatDelta(stats, { reputation: 6, money: 5, teamwork: -3 });
-      fatigue = clamp(fatigue + 5);
-      relations = applyRelations(relations, { manager: 4, duo: -1 });
-      notice = 'Contenido out. La marca suma; el team mira el reloj.';
-      break;
-    case 'match':
-      form = clamp(form + 1);
-      fatigue = clamp(fatigue + 6);
-      notice = 'Día de partido. Draft room en 3…';
-      break;
-  }
+  let stats = applyStatDelta({ ...state.stats }, activity.stats);
+  // La forma se cae sola: hay que sostenerla compitiendo.
+  let form = clamp(state.form + activity.form - 1);
+  // Recuperación pasiva mínima: la fatiga baja si la cuidás, no por inercia.
+  const fatigue = clamp(state.fatigue + activity.fatigue - 1);
+  const relations = applyRelations(state.relations, activity.relations);
 
   // Fatiga alta castiga forma y stats
   if (fatigue >= 70) {
-    form = clamp(form - 4);
+    form = clamp(form - 3);
     stats = applyStatDelta(stats, { mentality: -2, mechanics: -1 });
   }
   if (fatigue >= 85) {
-    form = clamp(form - 6);
+    form = clamp(form - 5);
     stats = applyStatDelta(stats, { mentality: -4, gameSense: -2 });
   }
 
@@ -183,7 +193,7 @@ export function applyWeekActivity(
     lastActivity: activityId,
     turn,
     rngSeed: seed,
-    lastNotice: notice,
+    lastNotice: activity.notice,
     ticker: tickerFor(activityId, state),
     phase: 'hub',
     currentEventId: null,
@@ -191,12 +201,21 @@ export function applyWeekActivity(
 
   next = maybePromote(next);
 
+  const claim = claimObjectives(next);
+  if (claim.claimed.length > 0) {
+    next = {
+      ...claim.state,
+      lastNotice: `Objetivo cumplido: ${claim.claimed[0]!.label} — ${claim.claimed[0]!.rewardLabel}`,
+      ticker: [`OBJETIVO · ${claim.claimed[0]!.label}`, ...next.ticker],
+    };
+  }
+
   if (turn >= next.maxTurns) {
     next = { ...next, endingId: resolveEnding(next), phase: 'hub' };
     return { kind: 'ending', state: next };
   }
 
-  // Match day explícito o chance según etapa/actividad
+  // Match day explícito, o llamado según etapa y actividad
   const stageOrder = pack.stages.find((s) => s.id === next.stageId)?.order ?? 1;
   let goMatch = activityId === 'match';
   if (!goMatch && stageOrder >= 2 && (activityId === 'scrim' || activityId === 'soloq')) {

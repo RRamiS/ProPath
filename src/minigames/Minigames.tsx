@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { colors, fonts, radius, space } from '../ui/theme';
+import { colors, fonts, radius, SKEW, space, UNSKEW } from '../ui/theme';
 import type { MinigameGrade } from './applyResult';
 import { gradeFromScore } from './applyResult';
 
@@ -18,7 +18,7 @@ type Props = {
   onDone: (grade: MinigameGrade) => void;
 };
 
-function Header({
+export function Header({
   kicker,
   title,
   blurb,
@@ -31,10 +31,13 @@ function Header({
 }) {
   return (
     <>
-      <Text style={styles.kicker}>{kicker}</Text>
+      <View style={styles.kickerTab}>
+        <Text style={styles.kickerTabText}>{kicker}</Text>
+      </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.blurb}>{blurb}</Text>
       <View style={styles.howBox}>
+        <View style={styles.howEdge} />
         <Text style={styles.howLabel}>CÓMO SE JUEGA</Text>
         <Text style={styles.howText}>{howTo}</Text>
       </View>
@@ -42,7 +45,7 @@ function Header({
   );
 }
 
-function ResultBlock({
+export function ResultBlock({
   grade,
   onDone,
 }: {
@@ -57,10 +60,18 @@ function ResultBlock({
         : grade === 'ok'
           ? 'PASABLE'
           : 'FALLASTE';
+  // El color tiene que coincidir con el resultado: fallar no puede verse verde.
+  const gradeColor =
+    grade === 'perfect' || grade === 'good'
+      ? colors.accent
+      : grade === 'ok'
+        ? colors.warn
+        : colors.danger;
+
   return (
     <View style={styles.resultBox}>
-      <Text style={styles.resultGrade}>{label}</Text>
-      <Pressable style={styles.cta} onPress={() => onDone(grade)}>
+      <Text style={[styles.resultGrade, { color: gradeColor }]}>{label}</Text>
+      <Pressable style={[styles.cta, { backgroundColor: gradeColor }]} onPress={() => onDone(grade)}>
         <Text style={styles.ctaText}>Seguir carrera</Text>
       </Pressable>
     </View>
@@ -467,18 +478,28 @@ export function FocusMinigame({ difficulty, title, blurb, onDone }: Props) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xl },
-  kicker: {
-    color: colors.gold,
+  kickerTab: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.gold,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 10,
+    transform: [{ skewX: SKEW }],
+  },
+  kickerTabText: {
+    color: colors.bg,
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
+    fontSize: 10,
     letterSpacing: 2,
-    marginBottom: 8,
+    transform: [{ skewX: UNSKEW }],
   },
   title: {
     color: colors.text,
     fontFamily: fonts.display,
-    fontSize: 24,
+    fontSize: 26,
     lineHeight: 30,
+    letterSpacing: -1,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   blurb: {
@@ -492,9 +513,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderRadius: radius.md,
     padding: 12,
+    paddingLeft: 14,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: colors.lineStrong,
+    overflow: 'hidden',
+  },
+  howEdge: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: colors.accent,
   },
   howLabel: {
     color: colors.accent,
@@ -523,7 +554,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(61,220,151,0.35)',
+    backgroundColor: 'rgba(204,255,51,0.3)',
   },
   needle: {
     position: 'absolute',
@@ -549,13 +580,15 @@ const styles = StyleSheet.create({
   },
   ctaHot: { backgroundColor: colors.blue },
   ctaText: {
-    color: '#04140E',
+    color: colors.onAccent,
     fontFamily: fonts.bodyBold,
     fontSize: 16,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   ctaSub: {
     marginTop: 4,
-    color: 'rgba(4,20,14,0.7)',
+    color: 'rgba(11,18,0,0.7)',
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
   },
@@ -581,11 +614,11 @@ const styles = StyleSheet.create({
   trackLabHot: { color: colors.accent },
   resultBox: { marginTop: 12 },
   resultGrade: {
-    color: colors.accent,
     fontFamily: fonts.display,
-    fontSize: 28,
+    fontSize: 32,
+    letterSpacing: -1,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   timer: {
     color: colors.danger,
@@ -636,7 +669,7 @@ const styles = StyleSheet.create({
   fogMap: {
     height: 260,
     borderRadius: radius.lg,
-    backgroundColor: '#0A1218',
+    backgroundColor: colors.bgSunken,
     borderWidth: 1,
     borderColor: colors.lineStrong,
     overflow: 'hidden',
@@ -658,7 +691,7 @@ const styles = StyleSheet.create({
     marginLeft: -32,
     marginTop: -32,
     borderRadius: 999,
-    backgroundColor: 'rgba(107,163,255,0.25)',
+    backgroundColor: 'rgba(47,230,224,0.22)',
     borderWidth: 2,
     borderColor: colors.blue,
     alignItems: 'center',
