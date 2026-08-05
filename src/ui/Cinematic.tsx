@@ -20,6 +20,7 @@ const VIBE_LABEL: Record<CinematicPayload['vibe'], string> = {
   promote: 'PROMOCIÓN',
   skill: 'SKILL CHECK',
   ending: 'FINAL DE TEMPORADA',
+  match: 'MATCH DAY',
 };
 
 export function CinematicOverlay() {

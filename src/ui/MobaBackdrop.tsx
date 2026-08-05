@@ -15,6 +15,17 @@ import { colors } from './theme';
 type Props = {
   intensity?: 'landing' | 'play' | 'cinematic';
   showArt?: boolean;
+  /** Atmosfera por etapa: soloq / academy / challengers / arena… */
+  stageId?: string;
+};
+
+const STAGE_COLORS: Record<string, [string, string, string]> = {
+  soloq: ['#061018', '#070A0F', '#04070A'],
+  academy: ['#0A1218', '#0C1410', '#05080C'],
+  challengers: ['#0C1018', '#10141C', '#06080E'],
+  tier1: ['#0E0A12', '#120E18', '#08060C'],
+  worlds: ['#0A1018', '#0C1420', '#040810'],
+  arena: ['#120808', '#180C0C', '#080404'],
 };
 
 const fill = { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0 };
@@ -151,10 +162,13 @@ function Nexus({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
-export function MobaBackdrop({ intensity = 'play', showArt = false }: Props) {
+export function MobaBackdrop({ intensity = 'play', showArt = false, stageId }: Props) {
   const { width, height } = useWindowDimensions();
   const fog = useSharedValue(0);
   const isLanding = intensity === 'landing' || intensity === 'cinematic';
+  const stageColors =
+    (stageId && STAGE_COLORS[stageId]) ||
+    (isLanding ? (['#031018', '#071a14', '#05080C'] as [string, string, string]) : STAGE_COLORS.soloq!);
 
   useEffect(() => {
     fog.value = withRepeat(withTiming(1, { duration: 9000, easing: Easing.inOut(Easing.quad) }), -1, true);
@@ -176,10 +190,7 @@ export function MobaBackdrop({ intensity = 'play', showArt = false }: Props) {
 
   return (
     <View style={fill} pointerEvents="none">
-      <LinearGradient
-        colors={isLanding ? ['#031018', '#071a14', '#05080C'] : ['#061018', colors.bg, '#04070A']}
-        style={fill}
-      />
+      <LinearGradient colors={stageColors} style={fill} />
 
       {showArt ? (
         <Image

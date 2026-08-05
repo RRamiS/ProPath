@@ -1,19 +1,15 @@
 /** Motor genérico de carrera por decisiones — reusable (esports, política, etc.) */
 
 export type StatId = string;
-
 export type Stats = Record<StatId, number>;
-
 export type Flags = Record<string, boolean | string | number>;
 
-/** Duración de la partida — el jugador la elige al crear el PJ */
 export type RunDurationId = 'sprint' | 'season' | 'epic';
 
 export interface RunDuration {
   id: RunDurationId;
   label: string;
   blurb: string;
-  /** Decisiones hasta el ending (ni muy corto ni infinito) */
   maxTurns: number;
   minutesHint: string;
 }
@@ -76,6 +72,7 @@ export interface ChoiceEffect {
   flags?: Flags;
   setStage?: string;
   ending?: string;
+  relations?: Partial<Relations>;
 }
 
 export interface Choice {
@@ -92,9 +89,10 @@ export interface EventMinigame {
   kind: MinigameKind;
   title: string;
   blurb: string;
-  /** 1 fácil → 3 hard */
   difficulty: 1 | 2 | 3;
 }
+
+export type WeekActivityId = 'soloq' | 'scrim' | 'vod' | 'rest' | 'content' | 'match';
 
 export interface GameEvent {
   id: string;
@@ -103,9 +101,12 @@ export interface GameEvent {
   stages: string[];
   nationTags?: string[];
   excludeNationTags?: string[];
+  /** Preferir si la última actividad fue esta */
+  activityTags?: WeekActivityId[];
+  /** Requiere relación mínima */
+  requireRelations?: Partial<Relations>;
   weight?: number;
   choices: Choice[];
-  /** Si existe, el evento abre un skill-check interactivo */
   minigame?: EventMinigame;
 }
 
@@ -136,6 +137,26 @@ export interface PlayerProfile {
   durationId: RunDurationId;
 }
 
+export interface Relations {
+  coach: number;
+  duo: number;
+  rival: number;
+  manager: number;
+}
+
+export interface MatchResult {
+  won: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  mvp: boolean;
+  opponent: string;
+  scoreLine: string;
+  highlights: string[];
+}
+
+export type CareerPhase = 'hub' | 'event' | 'match';
+
 export interface CareerState {
   packId: string;
   profile: PlayerProfile;
@@ -149,6 +170,16 @@ export interface CareerState {
   currentEventId: string | null;
   endingId: string | null;
   rngSeed: number;
-  /** Mensaje corto si hubo promoción de etapa */
   lastNotice: string | null;
+  /** Forma competitiva 0–100 */
+  form: number;
+  /** Fatiga 0–100 */
+  fatigue: number;
+  relations: Relations;
+  lastActivity: WeekActivityId | null;
+  lastMatch: MatchResult | null;
+  phase: CareerPhase;
+  ticker: string[];
+  wins: number;
+  losses: number;
 }

@@ -8,15 +8,23 @@ import Animated, {
   withDelay,
   withSpring,
 } from 'react-native-reanimated';
-import { Body, Button, Label, ProgressRail, StatBar, Title } from '../ui/components';
+import { Body, Button, Label, StatBar, Title } from '../ui/components';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
+import { CareerHud } from '../ui/CareerHud';
+import { ShareCard } from '../ui/ShareCard';
 import { colors, fonts, radius, shadow, springs, space } from '../ui/theme';
 import { useGameStore } from '../store/gameStore';
 import { RUN_DURATIONS, type RunDurationId } from '../engine';
 
-function Atmosphere({ landing = false }: { landing?: boolean }) {
-  return <MobaBackdrop intensity={landing ? 'landing' : 'play'} showArt={landing} />;
+function Atmosphere({
+  landing = false,
+  stageId,
+}: {
+  landing?: boolean;
+  stageId?: string;
+}) {
+  return <MobaBackdrop intensity={landing ? 'landing' : 'play'} showArt={landing} stageId={stageId} />;
 }
 
 export function HomeScreen() {
@@ -36,13 +44,13 @@ export function HomeScreen() {
           </FadeSlide>
           <FadeSlide delay={120}>
             <Body style={styles.heroCopy}>
-              Skill checks, draft bajo presión y el grind real de cada región — sin nombres de
-              marcas. Tu carrera, tus manos.
+              Hub semanal, partidos live estilo broadcast y relaciones que importan — sin nombres
+              de marcas. Tu carrera, tus manos.
             </Body>
           </FadeSlide>
           <FadeSlide delay={180} style={styles.ctaBlock}>
             <Button label="Empezar carrera" onPress={() => setScreen('create')} />
-            <Text style={styles.micro}>Cinemáticas · Minijuegos · Finales</Text>
+            <Text style={styles.micro}>Semanas · Match day · Finales</Text>
           </FadeSlide>
         </View>
       </SafeAreaView>
@@ -82,7 +90,7 @@ export function CreateScreen() {
               <Button
                 variant="choice"
                 selected={draft.durationId === d.id}
-                label={`${d.label}  ·  ${d.maxTurns} decisiones`}
+                label={`${d.label}  ·  ${d.maxTurns} semanas`}
                 hint={`${d.minutesHint} — ${d.blurb}`}
                 onPress={() => setDraft({ durationId: d.id as RunDurationId })}
               />
@@ -153,7 +161,7 @@ export function PlayScreen() {
   if (!career || !career.currentEventId) {
     return (
       <View style={styles.root}>
-        <Atmosphere />
+        <Atmosphere stageId={career?.stageId} />
         <SafeAreaView style={styles.safe}>
           <Body style={{ padding: 24 }}>Cargando evento…</Body>
         </SafeAreaView>
@@ -162,13 +170,11 @@ export function PlayScreen() {
   }
 
   const event = pack.events.find((e) => e.id === career.currentEventId);
-  const stage = pack.stages.find((s) => s.id === career.stageId);
-  const nation = pack.nations.find((n) => n.id === career.profile.nationId);
 
   if (!event) {
     return (
       <View style={styles.root}>
-        <Atmosphere />
+        <Atmosphere stageId={career.stageId} />
         <Body style={{ padding: 24 }}>Evento no encontrado.</Body>
       </View>
     );
@@ -176,7 +182,7 @@ export function PlayScreen() {
 
   return (
     <View style={styles.root}>
-      <Atmosphere />
+      <Atmosphere stageId={career.stageId} />
       <SafeAreaView style={styles.safe}>
         <ScrollView
           style={styles.scrollFlex}
@@ -184,29 +190,15 @@ export function PlayScreen() {
           showsVerticalScrollIndicator={false}
         >
           <FadeSlide key={`${career.currentEventId}-${career.turn}`}>
-            <View style={styles.livePill}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE CAREER</Text>
-            </View>
+            <CareerHud career={career} pack={pack} compact />
 
-            <View style={styles.topMeta}>
-              <Text style={styles.metaPrimary}>
-                {nation?.flag}  {career.profile.name}
-              </Text>
-              <Text style={styles.metaSecondary}>
-                {career.profile.roleId.toUpperCase()} · {career.durationId}
-              </Text>
-            </View>
-
-            <ProgressRail
-              turn={career.turn}
-              maxTurns={career.maxTurns}
-              stageName={stage?.name ?? career.stageId}
-            />
-
-            {career.lastNotice ? (
-              <View style={styles.notice}>
-                <Text style={styles.noticeText}>{career.lastNotice}</Text>
+            {career.lastMatch ? (
+              <View style={styles.matchChip}>
+                <Text style={styles.matchChipText}>
+                  Último: {career.lastMatch.won ? 'W' : 'L'} vs {career.lastMatch.opponent} ·{' '}
+                  {career.lastMatch.kills}/{career.lastMatch.deaths}/{career.lastMatch.assists}
+                  {career.lastMatch.mvp ? ' · MVP' : ''}
+                </Text>
               </View>
             ) : null}
 
@@ -223,7 +215,7 @@ export function PlayScreen() {
 
             <View style={styles.eventBlock}>
               <Text style={styles.eventEyebrow}>
-                {event.minigame ? 'Skill check disponible' : 'Decisión'}
+                {event.minigame ? 'Skill check disponible' : 'Momento de la semana'}
               </Text>
               <Title style={{ fontSize: 24 }}>{event.title}</Title>
               <Body style={{ marginTop: 10, marginBottom: 18 }}>{event.body}</Body>
@@ -276,35 +268,28 @@ export function EndingScreen() {
 
   return (
     <View style={styles.root}>
-      <Atmosphere />
+      <Atmosphere stageId={career?.stageId} />
       <SafeAreaView style={styles.safe}>
-        <Animated.View style={[styles.hero, cardStyle]}>
-          <Text style={styles.endingTier}>
-            {ending?.tier === 'legend'
-              ? 'LEYENDA'
-              : ending?.tier === 'great'
-                ? 'RISING'
-                : ending?.tier === 'ok'
-                  ? 'REGIONAL'
-                  : 'FIN'}
-          </Text>
-          <Text style={[styles.brand, styles.endingTitle]}>{ending?.title ?? 'Fin'}</Text>
-          <Body style={styles.heroCopy}>{ending?.body}</Body>
-          {career ? (
-            <View style={styles.endingStats}>
-              <Text style={styles.micro}>
-                {career.profile.name} · {career.turn}/{career.maxTurns} decisiones
-              </Text>
-              <Text style={styles.micro}>
-                Etapa final: {pack.stages.find((s) => s.id === career.stageId)?.name} · Rep{' '}
-                {career.stats.reputation} · Mec {career.stats.mechanics}
-              </Text>
+        <ScrollView contentContainerStyle={styles.endingScroll} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.hero, cardStyle]}>
+            <Text style={styles.endingTier}>
+              {ending?.tier === 'legend'
+                ? 'LEYENDA'
+                : ending?.tier === 'great'
+                  ? 'RISING'
+                  : ending?.tier === 'ok'
+                    ? 'REGIONAL'
+                    : 'FIN'}
+            </Text>
+            <Text style={[styles.brand, styles.endingTitle]}>{ending?.title ?? 'Fin'}</Text>
+            <Body style={styles.heroCopy}>{ending?.body}</Body>
+            {career ? <ShareCard career={career} pack={pack} ending={ending} /> : null}
+            <Text style={styles.micro}>Screenshot la tarjeta para compartir</Text>
+            <View style={styles.endingCta}>
+              <Button label="Nueva carrera" onPress={reset} />
             </View>
-          ) : null}
-          <View style={styles.endingCta}>
-            <Button label="Nueva carrera" onPress={reset} />
-          </View>
-        </Animated.View>
+          </Animated.View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -435,6 +420,26 @@ const styles = StyleSheet.create({
   },
   endingStats: { marginTop: 8 },
   endingCta: { marginTop: space.md },
+  endingScroll: {
+    flexGrow: 1,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.lg,
+    justifyContent: 'center',
+  },
+  matchChip: {
+    backgroundColor: 'rgba(232,197,107,0.1)',
+    borderRadius: radius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(232,197,107,0.28)',
+  },
+  matchChipText: {
+    color: colors.gold,
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+  },
   notice: {
     backgroundColor: colors.accentSoft,
     borderRadius: radius.md,

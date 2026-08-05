@@ -66,7 +66,7 @@ export function maybePromote(state: CareerState): CareerState {
   }
 
   if (target === state.stageId) {
-    return { ...state, lastNotice: null };
+    return state;
   }
 
   return {

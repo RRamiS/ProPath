@@ -1,5 +1,6 @@
 import type { CareerState, ContentPack, PlayerProfile, Stats } from './types';
 import { getDuration } from './types';
+import { DEFAULT_RELATIONS } from '../content/esports/roster';
 
 function clampStat(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
@@ -53,6 +54,7 @@ export function createCareer(
       role: role.id,
       nation: nation.id,
       duration: duration.id,
+      region: nation.regionId,
     },
     stageId: firstStage.id,
     turn: 0,
@@ -63,6 +65,19 @@ export function createCareer(
     endingId: null,
     rngSeed: seed,
     lastNotice: null,
+    form: 52,
+    fatigue: 18,
+    relations: { ...DEFAULT_RELATIONS },
+    lastActivity: null,
+    lastMatch: null,
+    phase: 'hub',
+    ticker: [
+      `${nation.flag} ${profile.name.trim() || 'Prodigy'} entra al ranked`,
+      `Scouts activos en ${nation.regionId}`,
+      'Patch notes: meta estable por ahora',
+    ],
+    wins: 0,
+    losses: 0,
   };
 }
 

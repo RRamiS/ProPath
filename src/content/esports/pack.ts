@@ -1,4 +1,5 @@
 import type { ContentPack, GameEvent } from '../../engine/types';
+import { hubEvents } from './hubEvents';
 import { regionalEvents } from './regionalEvents';
 
 const events: GameEvent[] = [
@@ -804,5 +805,5 @@ export const esportsPack: ContentPack = {
       tier: 'legend',
     },
   ],
-  events: [...events, ...regionalEvents],
+  events: [...events, ...hubEvents, ...regionalEvents],
 };

@@ -1,7 +1,6 @@
 import type { CareerState, Stats } from '../engine/types';
 import { applyStatDelta } from '../engine/createCareer';
 import { maybePromote, resolveEnding } from '../engine/progression';
-import { advanceToEvent } from '../engine/applyChoice';
 import type { ContentPack } from '../engine/types';
 
 export type MinigameGrade = 'perfect' | 'good' | 'ok' | 'miss';
@@ -20,7 +19,7 @@ export function gradeFromScore(score: number): MinigameGrade {
   return 'miss';
 }
 
-/** Aplica resultado de minijuego y avanza la carrera (como un choice). */
+/** Aplica resultado de minijuego y vuelve al hub. */
 export function applyMinigameResult(
   pack: ContentPack,
   state: CareerState,
@@ -36,6 +35,8 @@ export function applyMinigameResult(
     stats: applyStatDelta(state.stats, REWARDS[grade]),
     history: [...state.history, event.id],
     currentEventId: null,
+    phase: 'hub',
+    form: Math.max(0, Math.min(100, state.form + (grade === 'perfect' ? 4 : grade === 'miss' ? -3 : 1))),
     lastNotice:
       grade === 'perfect'
         ? 'Skill check PERFECTO. El VOD se ve limpio.'
@@ -61,6 +62,5 @@ export function applyMinigameResult(
     next = { ...next, endingId: resolveEnding(next) };
   }
 
-  if (next.endingId) return next;
-  return advanceToEvent(pack, next);
+  return next;
 }
