@@ -5,7 +5,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'soloq_tilt_after_grind',
     title: 'Chat tóxico post-grind',
-    body: 'Después de una semana de SoloQ, un flame te clava. Nyx te escribe: “¿cerramos?”',
+    body: 'Después de una semana de SoloQ, un flame te clava. {{duo}} te escribe: “¿cerramos?”',
     stages: ['soloq', 'academy'],
     activityTags: ['soloq'],
     weight: 8,
@@ -23,7 +23,7 @@ export const hubEvents: GameEvent[] = [
       },
       {
         id: 'duo_up',
-        label: 'Duo con Nyx',
+        label: 'Duo con {{duo}}',
         effect: { stats: { teamwork: 5, mentality: 4 }, relations: { duo: 6 } },
       },
       {
@@ -35,7 +35,7 @@ export const hubEvents: GameEvent[] = [
   },
   {
     id: 'scrim_coach_talk',
-    title: '1-on-1 con Marek',
+    title: '1-on-1 con {{coach}}',
     body: 'El coach te llama aparte tras el bloque. “Tu wave management está flojo.”',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['scrim', 'vod'],
@@ -60,7 +60,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'content_vs_scrim',
     title: 'Stream o scrim',
-    body: 'Tu manager empuja un collab. Marek ya agendó el bloque. No podés hacer las dos.',
+    body: 'Tu manager empuja un collab. {{coach}} ya agendó el bloque. No podés hacer las dos.',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['content'],
     requireRelations: { manager: 25 },
@@ -107,7 +107,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'match_win_locker',
     title: 'Vestuario post-win',
-    body: 'La serie quedó 1–0. Duo te choca el hombro. Marek sonríe una vez.',
+    body: 'La serie quedó 1–0. Duo te choca el hombro. {{coach}} sonríe una vez.',
     stages: ['academy', 'challengers', 'tier1', 'worlds'],
     activityTags: ['match', 'scrim'],
     weight: 10,
@@ -161,7 +161,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'duo_chemistry_peak',
     title: 'Synergy con el duo',
-    body: 'Nyx y vos leen el mismo timer sin hablar. Marek lo nota en el scrim.',
+    body: '{{duo}} y vos leen el mismo timer sin hablar. {{coach}} lo nota en el scrim.',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['scrim', 'soloq'],
     requireRelations: { duo: 60 },
@@ -209,7 +209,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'manager_visa_talk',
     title: 'Visa y calendario',
-    body: 'Sola pone un PDF en la mesa: invitacional afuera. Falta papelería y forma.',
+    body: '{{manager}} pone un PDF en la mesa: invitacional afuera. Falta papelería y forma.',
     stages: ['challengers', 'tier1', 'worlds'],
     activityTags: ['content', 'rest', 'match'],
     requireRelations: { manager: 40 },
@@ -291,7 +291,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'contract_offer',
     title: 'Oferta sobre la mesa',
-    body: 'Sola desliza un contrato. Podés firmar lo razonable o pedir más y arriesgar.',
+    body: '{{manager}} desliza un contrato. Podés firmar lo razonable o pedir más y arriesgar.',
     stages: ['challengers', 'tier1', 'worlds'],
     activityTags: ['content', 'rest', 'match'],
     requireRelations: { manager: 30 },

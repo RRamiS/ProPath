@@ -494,8 +494,8 @@ const events: GameEvent[] = [
     ],
   },
   {
-    id: 'content_vs_scrim',
-    title: 'Stream o scrim',
+    id: 'stream_vs_team_review',
+    title: 'Stream o review de team',
     body: 'Tu comunidad pide stream. El team pide review privada. No da el tiempo para ambos.',
     stages: ['academy', 'challengers'],
     nationTags: ['creator-economy', 'big-audience', 'na', 'br'],
@@ -703,31 +703,56 @@ export const esportsPack: ContentPack = {
       id: 'mid',
       name: 'Mid',
       description: 'Carry de mapa, pressure y outplays.',
+      stakes:
+        'Vos decidís el tempo del mapa. Si fallás un roam, se nota en el scoreboard — y en el VOD del coach.',
       startingStats: { mechanics: 8, gameSense: 5 },
+      primaryStats: ['mechanics', 'gameSense'],
+      signatureCalls: ['prio', 'playmake', 'roam', 'focus'],
+      signatureActivity: 'soloq',
     },
     {
       id: 'jungle',
       name: 'Jungle',
       description: 'Tempo, pathing y calls tempranas.',
+      stakes:
+        'El draft y el pathing son tuyos. Un mal clear temprano te marca la serie entera; un buen gank te hace shotcaller.',
       startingStats: { gameSense: 10, teamwork: 5 },
+      primaryStats: ['gameSense', 'teamwork'],
+      signatureCalls: ['prio', 'roam', 'steal', 'baron'],
+      signatureActivity: 'vod',
     },
     {
       id: 'adc',
       name: 'ADC',
       description: 'Scaling y positioning. Vivís con tu support.',
+      stakes:
+        'Tu valor explota tarde. Dependés del duo: si la lane se rompe, el late nunca llega.',
       startingStats: { mechanics: 10, mentality: 3 },
+      primaryStats: ['mechanics', 'mentality'],
+      signatureCalls: ['safe', 'farm', 'peel', 'siege'],
+      signatureActivity: 'scrim',
     },
     {
       id: 'support',
       name: 'Support',
       description: 'Vision, engages y shotcalling.',
+      stakes:
+        'Pocas kills, mucho control. Si no armás la visión, el carry muere — y el blame cae igual sobre vos.',
       startingStats: { teamwork: 12, gameSense: 5 },
+      primaryStats: ['teamwork', 'gameSense'],
+      signatureCalls: ['safe', 'peel', 'steal', 'stall'],
+      signatureActivity: 'scrim',
     },
     {
       id: 'top',
       name: 'Top',
       description: 'Matchups, TP plays y resiliencia mental.',
+      stakes:
+        'Isla solitaria. Un mismatch te deja irrelevante; un TP clutch te convierte en el héroe del split.',
       startingStats: { mentality: 10, mechanics: 5 },
+      primaryStats: ['mentality', 'mechanics'],
+      signatureCalls: ['flex', 'farm', 'bail', 'close'],
+      signatureActivity: 'soloq',
     },
   ],
   stages: [

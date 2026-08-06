@@ -1,81 +1,46 @@
-import { applyStatDelta, nextRng } from './createCareer';
+import { applyStatDelta } from './createCareer';
+import { pushMemory } from './memory';
 import { maybePromote } from './progression';
+import {
+  applySituationChoice,
+  findEvent,
+  openSituation,
+} from './situationDirector';
 import { applyRelations } from './week';
-import type { CareerState, ContentPack, GameEvent, Relations } from './types';
+import type { CareerState, ContentPack, GameEvent, SituationInstance } from './types';
 
 function flagsMatch(state: CareerState, require?: Record<string, boolean | string | number>): boolean {
   if (!require) return true;
   return Object.entries(require).every(([k, v]) => state.flags[k] === v);
 }
 
-function relationsMatch(state: CareerState, require?: Partial<Relations>): boolean {
-  if (!require) return true;
-  return Object.entries(require).every(([k, v]) => {
-    if (typeof v !== 'number') return true;
-    return (state.relations[k as keyof Relations] ?? 0) >= v;
-  });
-}
-
-const RECENT_WINDOW = 6;
-
-export function pickEvent(pack: ContentPack, state: CareerState): { event: GameEvent; seed: number } {
-  const nation = pack.nations.find((n) => n.id === state.profile.nationId);
-  const tags = new Set(nation?.tags ?? []);
-  const recent = new Set(state.history.slice(-RECENT_WINDOW));
-
-  const inStage = pack.events.filter((e) => {
-    if (!e.stages.includes(state.stageId)) return false;
-    if (e.excludeNationTags?.some((t) => tags.has(t))) return false;
-    if (!relationsMatch(state, e.requireRelations)) return false;
-    return true;
-  });
-
-  let pool = inStage.filter((e) => !recent.has(e.id));
-  if (pool.length === 0) pool = inStage;
-  if (pool.length === 0) {
-    const fallback = pack.events[0];
-    if (!fallback) throw new Error('No events in pack');
-    return { event: fallback, seed: state.rngSeed };
-  }
-
-  let seed = state.rngSeed;
-  const weighted = pool.map((e) => {
-    let w = e.weight ?? 1;
-    if (e.nationTags?.some((t) => tags.has(t))) w *= 2.4;
-    if (e.activityTags?.length && state.lastActivity) {
-      if (e.activityTags.includes(state.lastActivity)) w *= 3.2;
-      else w *= 0.45;
-    }
-    if (state.lastMatch) {
-      if (state.lastMatch.won && e.id.includes('win')) w *= 1.4;
-      if (!state.lastMatch.won && (e.id.includes('loss') || e.id.includes('tilt'))) w *= 1.6;
-      if (state.lastMatch.mvp && e.id.includes('mvp')) w *= 2;
-    }
-    return { e, w };
-  });
-
-  const total = weighted.reduce((s, x) => s + x.w, 0);
-  const roll = nextRng(seed);
-  seed = roll.seed;
-  let cursor = roll.value * total;
-
-  for (const item of weighted) {
-    cursor -= item.w;
-    if (cursor <= 0) return { event: item.e, seed };
-  }
-
-  return { event: weighted[weighted.length - 1]!.e, seed };
-}
-
-/** Abre un evento narrativo sin incrementar turno (el turno ya avanzó en el hub). */
+/** @deprecated use openSituation — kept as alias for store/smoke. */
 export function openEvent(pack: ContentPack, state: CareerState): CareerState {
-  if (state.endingId) return state;
-  const { event, seed } = pickEvent(pack, state);
+  return openSituation(pack, state);
+}
+
+/** @deprecated selection moved to situationDirector.pickSituation */
+export function pickEvent(pack: ContentPack, state: CareerState): { event: GameEvent; seed: number } {
+  const next = openSituation(pack, state);
+  const event = situationAsEvent(next.currentSituation) ?? findEvent(pack, next.currentEventId);
+  if (!event) throw new Error('No event');
+  return { event, seed: next.rngSeed };
+}
+
+function situationAsEvent(sit: SituationInstance | null): GameEvent | null {
+  if (!sit) return null;
   return {
-    ...state,
-    rngSeed: seed,
-    currentEventId: event.id,
-    phase: 'event',
+    id: sit.archetypeId,
+    title: sit.title,
+    body: sit.body,
+    stages: [sit.venueId],
+    choices: sit.choices.map((c) => ({
+      id: c.id,
+      label: c.label,
+      hint: c.hint,
+      effect: c.effect,
+    })),
+    minigame: sit.minigame,
   };
 }
 
@@ -89,29 +54,67 @@ export function applyChoice(
 ): CareerState {
   if (state.endingId || !state.currentEventId) return state;
 
-  const event = pack.events.find((e) => e.id === state.currentEventId);
-  if (!event) return state;
+  const fromSit = applySituationChoice(state, choiceId);
+  const sit = state.currentSituation;
 
-  const choice = event.choices.find((c) => c.id === choiceId);
-  if (!choice) return state;
-  if (!flagsMatch(state, choice.requireFlags)) return state;
+  let effect;
+  let outcome = choiceId;
+  let actors = sit?.actors ?? [];
+  let archetypeId = state.currentEventId;
+  let instanceId = sit?.instanceId ?? state.currentEventId;
+  let cause = sit?.cause;
+  let venueId = sit?.venueId ?? state.venueId;
 
-  const stats = applyStatDelta(state.stats, choice.effect.stats);
-  const flags = { ...state.flags, ...(choice.effect.flags ?? {}) };
-  const relations = applyRelations(state.relations, choice.effect.relations);
+  if (fromSit) {
+    effect = fromSit.choice.effect;
+    outcome = fromSit.choice.outcome ?? fromSit.choice.label;
+    state = fromSit.state;
+  } else {
+    const event = findEvent(pack, state.currentEventId);
+    if (!event) return state;
+    const choice = event.choices.find((c) => c.id === choiceId);
+    if (!choice) return state;
+    if (!flagsMatch(state, choice.requireFlags)) return state;
+    effect = choice.effect;
+    outcome = choice.label;
+  }
+
+  if (!effect) return state;
+
+  const stats = applyStatDelta(state.stats, effect.stats);
+  const flags = {
+    ...state.flags,
+    ...(effect.flags ?? {}),
+    lastChoice: choiceId,
+    lastArchetype: archetypeId,
+  };
+  const relations = applyRelations(state.relations, effect.relations);
 
   let next: CareerState = {
     ...state,
     stats,
     flags,
     relations,
-    history: [...state.history, event.id],
     currentEventId: null,
-    stageId: choice.effect.setStage ?? state.stageId,
-    endingId: choice.effect.ending ?? null,
-    lastNotice: null,
+    currentSituation: null,
+    stageId: effect.setStage ?? state.stageId,
+    endingId: effect.ending ?? null,
+    lastNotice: outcome,
     phase: 'hub',
   };
+
+  next = pushMemory(next, {
+    archetypeId,
+    instanceId,
+    actors,
+    choiceId,
+    turn: next.turn,
+    stage: next.stageId,
+    outcome,
+    intensity: 50,
+    cause,
+    venueId,
+  });
 
   if (next.turn % 3 === 0) {
     next = {
@@ -125,11 +128,10 @@ export function applyChoice(
     next = maybePromote(next);
   }
 
-  // Sync cash when events grant money stat
-  if (choice.effect.stats?.money) {
+  if (effect.stats?.money) {
     next = {
       ...next,
-      cash: Math.max(0, next.cash + Math.round(choice.effect.stats.money * 8)),
+      cash: Math.max(0, next.cash + Math.round(effect.stats.money * 8)),
     };
   }
 
@@ -138,4 +140,12 @@ export function applyChoice(
 
 export function visibleChoices(state: CareerState, event: GameEvent) {
   return event.choices.filter((c) => flagsMatch(state, c.requireFlags));
+}
+
+export function currentPlayableEvent(
+  pack: ContentPack,
+  state: CareerState
+): GameEvent | null {
+  if (state.currentSituation) return situationAsEvent(state.currentSituation);
+  return findEvent(pack, state.currentEventId) ?? null;
 }

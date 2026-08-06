@@ -62,7 +62,12 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
             </Text>
             <View style={styles.identityMeta}>
               <NationBadge nationId={nation?.id} tone={tone} />
-              <Text style={styles.role}>{career.profile.roleId.toUpperCase()}</Text>
+              <Text style={styles.role}>
+                {career.profile.roleId.toUpperCase()}
+                {typeof career.roleMastery?.[career.profile.roleId] === 'number'
+                  ? ` · ${career.roleMastery[career.profile.roleId]}`
+                  : ''}
+              </Text>
               <Text style={styles.age}>{career.ageYears}a</Text>
             </View>
           </View>

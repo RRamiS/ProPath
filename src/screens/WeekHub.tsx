@@ -14,11 +14,12 @@ import { activityImpact, getActivity, isMatchWeek } from '../engine/week';
 import type { CareerState, Relations } from '../engine/types';
 import { buildRoster } from '../content/esports/roster';
 import { ActionSheet } from '../room/ActionSheet';
-import { ROOM_NAMES } from '../room/layout';
+import { ROOM_NAMES, venueLayout } from '../room/layout';
 import { RoomScene, roomSlots, type RoomSlot } from '../room/RoomScene';
 import { useGameStore } from '../store/gameStore';
 import { agePressure } from '../engine/season';
 import { getVenue, npcLine } from '../engine/venues';
+import { DialogueSheet } from '../ui/DialogueSheet';
 import {
   Chip,
   IconBadge,
@@ -254,6 +255,7 @@ export function WeekHubScreen() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
 
   const daypart = career?.daypart;
   const turn = career?.turn;
@@ -266,11 +268,12 @@ export function WeekHubScreen() {
 
   const slots = roomSlots(career, pack);
   const selected = slots.find((s) => s.spec.id === selectedId) ?? null;
-  const roster = buildRoster(career.profile.nationId, career.profile.roleId);
+  const roster = career.roster ?? buildRoster(career.profile.nationId, career.profile.roleId);
   const stageOrder = pack.stages.find((s) => s.id === career.stageId)?.order ?? 1;
   const tired = career.fatigue >= 70;
   const pressure = agePressure(career.ageYears);
   const venue = getVenue(career.venueId);
+  const layout = venueLayout(career.venueId);
 
   const relationList: Array<{ key: RelationKey; name: string; role: string; tone: Tone }> = [
     { key: 'coach', name: roster.coach.name, role: roster.coach.role, tone: 'accent' },
@@ -326,12 +329,11 @@ export function WeekHubScreen() {
             ) : null}
 
             {npcTalk ? (
-              <Panel tone="blue" label="Conversación" style={styles.block}>
-                <Text style={styles.noticeText}>{npcTalk}</Text>
-                <Pressable onPress={clearNpcTalk} style={styles.dismissTalk}>
-                  <Text style={styles.dismissTalkText}>Cerrar</Text>
-                </Pressable>
-              </Panel>
+              <DialogueSheet
+                speaker="Conversación"
+                line={npcTalk}
+                onClose={clearNpcTalk}
+              />
             ) : null}
 
             <DaypartStrip career={career} matchWeek={isMatchWeek(career, pack)} />
@@ -339,12 +341,13 @@ export function WeekHubScreen() {
             <View style={styles.roomHead}>
               <View style={styles.roomTitleWrap}>
                 <Text style={styles.roomEyebrow}>
-                  {career.daypart === 'night' ? 'NOCHE' : 'DÍA'} · {venue.label.toUpperCase()}
+                  {career.daypart === 'night' ? 'NOCHE' : 'DÍA'} · {venue.label.toUpperCase()} ·{' '}
+                  {career.worldClock.weather.toUpperCase()}
                 </Text>
                 <Text style={styles.roomTitle}>
                   {career.venueId === 'home'
-                    ? ROOM_NAMES[career.stageId] ?? 'Tu pieza'
-                    : venue.label}
+                    ? ROOM_NAMES[career.stageId] ?? layout.name
+                    : layout.name}
                 </Text>
               </View>
               <View style={styles.headActions}>
@@ -353,6 +356,9 @@ export function WeekHubScreen() {
                 </Pressable>
                 <Pressable style={styles.viewToggle} onPress={() => setScreen('shop')}>
                   <Text style={styles.viewToggleText}>SHOP</Text>
+                </Pressable>
+                <Pressable style={styles.viewToggle} onPress={() => setShowMeta((v) => !v)}>
+                  <Text style={styles.viewToggleText}>{showMeta ? 'MUNDO' : 'DATA'}</Text>
                 </Pressable>
                 <Pressable
                   style={styles.viewToggle}
@@ -386,7 +392,15 @@ export function WeekHubScreen() {
                   }}
                   onNpc={(npc) => {
                     setSelectedId(null);
-                    talkToNpc(npcLine(npc.kind, career.daypart, career.rngSeed + npc.kind.length));
+                    talkToNpc(
+                      npc.kind,
+                      npcLine(
+                        npc.kind,
+                        career.daypart,
+                        career.rngSeed + npc.kind.length,
+                        career
+                      )
+                    );
                   }}
                 />
                 {selected ? (
@@ -410,26 +424,40 @@ export function WeekHubScreen() {
               </View>
             )}
 
-            <ObjectivesPanel career={career} />
+            {showMeta ? (
+              <>
+                <ObjectivesPanel career={career} />
 
-            <SectionHeader
-              eyebrow="Círculo"
-              title="Gente que te sostiene"
-              tone="blue"
-              right={<Tag label={`T${career.season}`} tone="muted" />}
-            />
-            <View style={styles.relGrid}>
-              {relationList.map((r) => (
-                <RelationCard
-                  key={r.key}
-                  kind={r.key}
-                  name={r.name}
-                  role={r.role}
-                  value={career.relations[r.key as keyof Relations]}
-                  tone={r.tone}
+                <SectionHeader
+                  eyebrow="Círculo"
+                  title="Gente que te sostiene"
+                  tone="blue"
+                  right={<Tag label={`T${career.season}`} tone="muted" />}
                 />
-              ))}
-            </View>
+                <View style={styles.relGrid}>
+                  {relationList.map((r) => (
+                    <RelationCard
+                      key={r.key}
+                      kind={r.key}
+                      name={r.name}
+                      role={r.role}
+                      value={career.relations[r.key as keyof Relations]}
+                      tone={r.tone}
+                    />
+                  ))}
+                </View>
+
+                {career.activeThreads.length > 0 ? (
+                  <Panel tone="warn" label="Hilos activos" style={styles.block}>
+                    {career.activeThreads.map((t) => (
+                      <Text key={t.id} style={styles.noticeText}>
+                        {t.kind} · {t.actors.map((a) => roster[a].name).join('/')} · {t.intensity}
+                      </Text>
+                    ))}
+                  </Panel>
+                ) : null}
+              </>
+            ) : null}
 
             {pressure.soft ? (
               <Pressable onPress={retireCareer} style={styles.retireLink}>
@@ -438,8 +466,8 @@ export function WeekHubScreen() {
             ) : null}
 
             <Text style={styles.footHint}>
-              Carrera continua: temporadas sin hard end. Viajá por el mapa, mejorá el setup y
-              hablá con tu gente. A los 35 el circuito empieza a apretar.
+              Carrera continua: el mundo cambia de actores, causas y sedes. Tocá DATA para ver
+              vínculos e hilos.
             </Text>
           </FadeSlide>
         </ScrollView>

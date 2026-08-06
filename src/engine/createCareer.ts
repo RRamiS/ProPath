@@ -1,7 +1,11 @@
 import type { CareerState, ContentPack, PlayerProfile, Stats } from './types';
 import { getDuration } from './types';
-import { DEFAULT_RELATIONS } from '../content/esports/roster';
+import { DEFAULT_RELATIONS, buildRoster } from '../content/esports/roster';
+import { initialNpcStates, rollWorldClock } from './npcDirector';
+import { nextRng } from './rng';
 import { START_AGE } from './season';
+
+export { nextRng };
 
 function clampStat(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
@@ -23,11 +27,6 @@ function mergeStats(base: Stats, ...partials: Array<Partial<Stats> | undefined>)
   return out;
 }
 
-export function nextRng(seed: number): { value: number; seed: number } {
-  const seed2 = (Math.imul(1664525, seed) + 1013904223) >>> 0;
-  return { value: seed2 / 0xffffffff, seed: seed2 };
-}
-
 export function createCareer(
   pack: ContentPack,
   profile: PlayerProfile,
@@ -45,6 +44,9 @@ export function createCareer(
   const duration = getDuration(profile.durationId);
   const stats = mergeStats(pack.baseStats, nation.startingStats, role.startingStats);
   const startCash = 40 + Math.round((stats.money ?? 0) * 0.8);
+  const relations = { ...DEFAULT_RELATIONS };
+  const roster = buildRoster(profile.nationId, profile.roleId);
+  const { clock, seed: clockSeed } = rollWorldClock(seed, 'day', false);
 
   return {
     packId: pack.id,
@@ -67,12 +69,13 @@ export function createCareer(
     durationId: duration.id,
     history: [],
     currentEventId: null,
+    currentSituation: null,
     endingId: null,
-    rngSeed: seed,
+    rngSeed: clockSeed,
     lastNotice: null,
     form: 52,
     fatigue: 18,
-    relations: { ...DEFAULT_RELATIONS },
+    relations,
     lastActivity: null,
     lastMatch: null,
     phase: 'hub',
@@ -93,6 +96,15 @@ export function createCareer(
     venueId: 'home',
     seasonWins: 0,
     seasonLosses: 0,
+    roster,
+    npcStates: initialNpcStates(relations),
+    memories: [],
+    activeThreads: [],
+    worldClock: clock,
+    roleMastery: { [role.id]: 22 },
+    previousRoleId: null,
+    roleSwitches: 0,
+    roleSwitchCooldown: 0,
   };
 }
 

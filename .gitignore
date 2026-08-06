@@ -40,4 +40,8 @@ yarn-error.*
 /ios
 /android
 
+# iso source packs (renders finales viven en assets/iso/{rooms,characters})
+assets/iso/source/
+.preview/
+
 .claude/

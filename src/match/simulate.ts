@@ -1,6 +1,8 @@
 import { applyStatDelta, nextRng } from '../engine/createCareer';
 import { relationBonuses } from '../engine/relations';
 import { agePressure } from '../engine/season';
+import { esportsPack } from '../content/esports/pack';
+import { gainRoleMastery, masteryFactor, roleCallBonus } from '../engine/role';
 import type { CareerState, MatchFactor, MatchResult, Relations } from '../engine/types';
 
 export type MatchPhase = 'draft' | 'early' | 'fight' | 'late';
@@ -61,12 +63,20 @@ export function pickOpponent(seed: number, stageId: string): { name: string; see
   return { name, seed: r.seed };
 }
 
+const ROLE_EARLY: Record<string, string> = {
+  jungle: 'Pathing: ¿invadir, full clear o gank temprano?',
+  mid: 'La mid wave llega. ¿Roameás, pusheás o buscás el 1v1?',
+  adc: 'Bot lane: farm seguro o pelear por prio con tu support?',
+  support: 'Vision y engages: ¿leés el mapa o pegás con el ADC?',
+  top: 'Island: matchup, freeze o TP play. Nadie te cubre.',
+};
+
 export function buildMatchBeats(roleId: string): MatchBeat[] {
   return [
     {
       phase: 'draft',
       title: 'Draft room',
-      body: 'Ban phase. El coach mira el clipboard. ¿Qué línea abrís?',
+      body: `Ban phase. Vas de ${roleId.toUpperCase()}. El coach mira el clipboard. ¿Qué línea abrís?`,
       choices: [
         { id: 'safe', label: 'Draft seguro / scaling', hint: 'Menos riesgo', momentum: 0 },
         { id: 'prio', label: 'Prio de early', hint: 'Presión de mapa', momentum: 1 },
@@ -76,10 +86,7 @@ export function buildMatchBeats(roleId: string): MatchBeat[] {
     {
       phase: 'early',
       title: 'Early game',
-      body:
-        roleId === 'jungle'
-          ? 'Pathing: ¿invadir, full clear o gank temprano?'
-          : 'La oleada llega. ¿Cómo jugás los primeros 8 minutos?',
+      body: ROLE_EARLY[roleId] ?? 'La oleada llega. ¿Cómo jugás los primeros 8 minutos?',
       choices: [
         { id: 'farm', label: 'Farm limpio + vision', momentum: 0, formBonus: 1 },
         { id: 'playmake', label: 'Buscar play temprano', momentum: 1 },
@@ -145,6 +152,10 @@ export function resolveMatch(
   add('Mecánicas', (state.stats.mechanics ?? 0) / 200);
   add('Teamplay', (state.stats.teamwork ?? 0) / 220);
 
+  const pack = esportsPack;
+  const mastery = masteryFactor(state);
+  add(`Maestría · ${state.profile.roleId.toUpperCase()}`, mastery * 0.55 - 0.12);
+
   const perks = relationBonuses(state);
   const age = agePressure(state.ageYears);
   if (perks.draftEdge) add('Perk · Plan de partido', perks.draftEdge);
@@ -152,6 +163,7 @@ export function resolveMatch(
   if (age.matchPenalty) add('Edad / veterano', -age.matchPenalty);
 
   let callsValue = 0;
+  let roleCalls = 0;
   choices.forEach((cid, i) => {
     const beat = beats[i];
     const choice = beat?.choices.find((c) => c.id === cid);
@@ -160,6 +172,7 @@ export function resolveMatch(
     // resta, arriesgar bien suma, y la carrera sigue pesando más que 4 clics.
     callsValue += (choice.momentum - 1) * 0.3;
     if (choice.formBonus) callsValue += choice.formBonus * 0.05;
+    roleCalls += roleCallBonus(pack, state, cid);
     if (i === 0 && cid === 'prio') highlights.push('Early prio en draft');
     if (i === 1 && cid === 'playmake') highlights.push('First blood attempt');
     if (i === 2 && cid === 'focus') highlights.push('Foco limpio al carry');
@@ -168,6 +181,7 @@ export function resolveMatch(
     if (i === 3 && cid === 'close') highlights.push('Cierre directo al nexo');
   });
   add('Tus llamadas', callsValue);
+  add('Lectura de rol', roleCalls);
 
   const stagePenalty =
     state.stageId === 'worlds'
@@ -230,7 +244,7 @@ export function resolveMatch(
   };
 
   const prize = won ? (mvp ? 55 : 35) : 8;
-  const next: CareerState = {
+  let next: CareerState = {
     ...state,
     stats,
     relations,
@@ -255,6 +269,9 @@ export function resolveMatch(
       ...result.highlights,
     ],
   };
+
+  // Series on-role endurecen la identidad; MVP acelera.
+  next = gainRoleMastery(next, won ? (mvp ? 7 : 4) : 2);
 
   return { result, state: next, seed };
 }

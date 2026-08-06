@@ -74,6 +74,7 @@ export function closeSeason(state: CareerState): CareerState {
     phase: 'seasonBreak',
     daypart: 'day',
     currentEventId: null,
+    currentSituation: null,
     lastNotice: notice,
     ticker: [
       `FIN DE TEMPORADA ${state.season}`,
@@ -89,6 +90,7 @@ export function continueSeason(state: CareerState): CareerState {
   return {
     ...state,
     phase: 'hub',
+    roleSwitchCooldown: Math.max(0, (state.roleSwitchCooldown ?? 0) - 1),
     lastNotice: `Temporada ${state.season}. Semana 1. A laburar.`,
     ticker: [`TEMPORADA ${state.season}`, ...state.ticker],
   };

@@ -1,5 +1,5 @@
 /**
- * Simula partidas (sin UI) para validar loop continuo.
+ * Simula partidas (sin UI) para validar loop continuo + variedad de situaciones.
  * Ejecutar: npx --yes tsx scripts/smoke-career.ts
  */
 import {
@@ -12,6 +12,7 @@ import {
   maybeForceRetire,
   nextRng,
   openEvent,
+  pickSituation,
   retire,
   travelTo,
   RUN_DURATIONS,
@@ -49,10 +50,7 @@ function ensureVenue(state: ReturnType<typeof createCareer>, activity: WeekActiv
   if (activity === 'rest' && state.venueId !== 'home' && state.venueId !== 'gym') {
     return travelTo(state, 'home');
   }
-  if (
-    (activity === 'soloq' || activity === 'content') &&
-    state.venueId !== 'home'
-  ) {
+  if ((activity === 'soloq' || activity === 'content') && state.venueId !== 'home') {
     return travelTo(state, 'home');
   }
   if (activity === 'vod' && state.venueId !== 'home' && state.venueId !== 'academy') {
@@ -73,6 +71,7 @@ function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cy
   let rng = seed;
   let seasonsDone = 0;
   const targetSeasons = 2;
+  const seenKeys: string[] = [];
 
   while (!state.endingId && guard < 800) {
     guard++;
@@ -105,7 +104,6 @@ function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cy
       actIdx++;
 
       state = ensureVenue(state, activity);
-      // Re-check after travel
       options = availableActivities(state, esportsPack);
       if (!options.some((o) => o.id === activity)) {
         activity = options[0]!.id;
@@ -137,20 +135,27 @@ function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cy
       continue;
     }
 
-    const event = esportsPack.events.find((e) => e.id === state.currentEventId);
-    if (!event) throw new Error(`Missing event ${state.currentEventId}`);
+    const sit = state.currentSituation;
+    const choices = sit?.choices ?? [];
+    if (choices.length === 0) {
+      // Legacy fallback via pack — director always sets situation, but be safe
+      throw new Error(`No choices for ${state.currentEventId}`);
+    }
 
-    let choice = event.choices[0]!;
+    const key = `${sit!.archetypeId}|${sit!.actors.join(',')}|${sit!.cause}|${sit!.venueId}`;
+    seenKeys.push(key);
+
+    let choice = choices[0]!;
     if (brain !== 'cycle' || (state.stats.mentality ?? 0) < 40) {
-      choice = [...event.choices].sort((a, b) => {
+      choice = [...choices].sort((a, b) => {
         const am = a.effect.stats?.mentality ?? 0;
         const bm = b.effect.stats?.mentality ?? 0;
         return bm - am;
       })[0]!;
     } else {
-      const pick = nextRng(rng + event.id.length);
+      const pick = nextRng(rng + sit!.archetypeId.length);
       rng = pick.seed;
-      choice = event.choices[Math.floor(pick.value * event.choices.length)]!;
+      choice = choices[Math.floor(pick.value * choices.length)]!;
     }
 
     state = applyChoice(esportsPack, state, choice.id);
@@ -159,6 +164,15 @@ function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cy
   if (!state.endingId) state = retire(state, false);
 
   const ending = esportsPack.endings.find((e) => e.id === state.endingId);
+
+  // Exact repeat window: same archetype+actors+cause+venue within 8
+  let exactRepeat = 0;
+  for (let i = 0; i < seenKeys.length; i++) {
+    for (let j = Math.max(0, i - 8); j < i; j++) {
+      if (seenKeys[i] === seenKeys[j]) exactRepeat++;
+    }
+  }
+
   return {
     durationId,
     turns: state.turn,
@@ -173,7 +187,30 @@ function playThrough(durationId: RunDurationId, seed: number, brain: Brain = 'cy
     form: state.form,
     fatigue: state.fatigue,
     record: `${state.wins}-${state.losses}`,
+    memories: state.memories.length,
+    threads: state.activeThreads.length,
+    rosterDuo: state.roster.duo.name,
+    situations: seenKeys.length,
+    exactRepeatIn8: exactRepeat,
+    uniqueSituations: new Set(seenKeys).size,
   };
+}
+
+function assertDeterminism() {
+  const a = createCareer(esportsPack, { name: 'A', nationId: 'ar', roleId: 'mid', durationId: 'sprint' }, 99);
+  const b = createCareer(esportsPack, { name: 'A', nationId: 'ar', roleId: 'mid', durationId: 'sprint' }, 99);
+  const sa = pickSituation(esportsPack, a);
+  const sb = pickSituation(esportsPack, b);
+  if (sa.instance.instanceId.split('_').slice(0, 2).join('_') !== sb.instance.instanceId.split('_').slice(0, 2).join('_')) {
+    // archetype + turn should match; full instance id includes rng roll — compare archetype/cause determinism
+  }
+  if (sa.instance.archetypeId !== sb.instance.archetypeId || sa.instance.cause !== sb.instance.cause) {
+    throw new Error('Determinism failed: same seed produced different situation archetype/cause');
+  }
+  if (a.roster.duo.name !== b.roster.duo.name) {
+    throw new Error('Determinism failed: roster mismatch');
+  }
+  console.log('determinism — OK', sa.instance.archetypeId, sa.instance.cause);
 }
 
 const results: ReturnType<typeof playThrough>[] = [];
@@ -187,8 +224,11 @@ for (const d of RUN_DURATIONS) {
   console.log('smart ', JSON.stringify(c));
 }
 
+assertDeterminism();
+
 const losses = results.some((r) => r.record.includes('-') && !r.record.endsWith('-0'));
 const tiers = new Set(results.map((r) => r.tier));
+const repeats = results.reduce((s, r) => s + r.exactRepeatIn8, 0);
 console.log('OK —', esportsPack.events.length, 'events,', esportsPack.endings.length, 'endings');
 console.log('variety — tiers:', [...tiers].join(','), '| hasLosses:', losses);
 console.log(
@@ -197,3 +237,14 @@ console.log(
   '| ages:',
   results.map((r) => r.age).join('/')
 );
+console.log(
+  'world — memories:',
+  results.map((r) => r.memories).join('/'),
+  '| uniqueSit:',
+  results.map((r) => r.uniqueSituations).join('/'),
+  '| exactRepeatIn8:',
+  repeats
+);
+if (repeats > results.length * 3) {
+  console.warn('WARN — high exact situation repeats within window 8');
+}

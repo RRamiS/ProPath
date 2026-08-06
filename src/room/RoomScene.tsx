@@ -1,29 +1,29 @@
 /**
  * El diorama de la semana. La habitación es el menú: cada objeto es una acción.
  *
- * Dos ideas prestadas y adaptadas:
- * - Persona 5: la jerarquía se hace con LUZ. Lo elegible se ilumina, el resto
- *   se apaga. Y una línea guía lleva el ojo del objeto a la etiqueta.
- * - YouTubers Life: el cuarto sube de categoría con vos, así el progreso se ve
- *   sin leer un número. Pero acá todo objeto dice qué hace y qué cuesta,
- *   que es justo lo que a ese juego le criticaron.
+ * El fondo y los props salen del mismo render 3D, así que acá solo se resuelve
+ * jerarquía (qué está vivo), interacción y quién está parado dónde.
  */
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withTiming,
+  Easing,
 } from 'react-native-reanimated';
 import type { CareerState, ContentPack } from '../engine/types';
 import { venueAllows } from '../engine/venues';
 import { isMatchWeek, WEEK_ACTIVITIES, type WeekActivity } from '../engine/week';
-import { colors, fonts, SKEW, stageGradient, tones, UNSKEW, type Tone } from '../ui/theme';
-import { ACTION_PROPS, DECOR_PROPS, HORIZON, type PropId, type PropSpec } from './layout';
-import { PropArt } from './props';
+import { colors, fonts, SKEW, tones, UNSKEW, type Tone } from '../ui/theme';
+import { floorToScreen, standingSpot, venueLayout, type PropId, type PropSpec } from './layout';
+import { IsoRoom } from './IsoRoom';
+import { roomPropArt } from './roomArt';
 import { hasVisual } from '../engine/economy';
 import { npcSpawns, type NpcSpawn } from '../engine/venues';
+import { WorldActor } from './WorldActor';
 
 const ACTIVITY_TONE: Record<string, Tone> = {
   soloq: 'accent',
@@ -45,111 +45,136 @@ export interface RoomSlot {
 /** Qué objetos están vivos este bloque y por qué los otros no. */
 export function roomSlots(career: CareerState, pack: ContentPack): RoomSlot[] {
   const order = pack.stages.find((s) => s.id === career.stageId)?.order ?? 1;
-  return ACTION_PROPS.map((spec) => {
-    const activity = WEEK_ACTIVITIES.find((a) => a.prop === spec.id);
-    if (!activity) return null;
+  const layout = venueLayout(career.venueId);
+  return layout.actions
+    .map((spec) => {
+      const activity = WEEK_ACTIVITIES.find((a) => a.prop === spec.id);
+      if (!activity) return null;
 
-    const stageOk = (activity.minStageOrder ?? 0) <= order;
-    const slotOk = activity.slots.includes(career.daypart);
-    const fixtureOk = activity.id !== 'match' || isMatchWeek(career, pack);
-    const venueOk = venueAllows(career.venueId, activity.id);
+      const stageOk = (activity.minStageOrder ?? 0) <= order;
+      const slotOk = activity.slots.includes(career.daypart);
+      const fixtureOk = activity.id !== 'match' || isMatchWeek(career, pack);
+      const venueOk = venueAllows(career.venueId, activity.id);
 
-    let lockLabel: string | null = null;
-    if (!stageOk) lockLabel = 'Bloqueado';
-    else if (!venueOk) lockLabel = 'Otra sede';
-    else if (!fixtureOk) lockLabel = 'Sin serie';
-    else if (!slotOk) lockLabel = activity.slots.includes('night') ? 'De noche' : 'De día';
+      let lockLabel: string | null = null;
+      if (!stageOk) lockLabel = 'Bloqueado';
+      else if (!venueOk) lockLabel = 'Otra sede';
+      else if (!fixtureOk) lockLabel = 'Sin serie';
+      else if (!slotOk) lockLabel = activity.slots.includes('night') ? 'De noche' : 'De día';
 
-    return {
-      spec,
-      activity,
-      tone: ACTIVITY_TONE[activity.id] ?? 'accent',
-      available: stageOk && slotOk && fixtureOk && venueOk,
-      lockLabel,
-    };
-  }).filter((x): x is RoomSlot => x !== null);
+      return {
+        spec,
+        activity,
+        tone: ACTIVITY_TONE[activity.id] ?? 'accent',
+        available: stageOk && slotOk && fixtureOk && venueOk,
+        lockLabel,
+      };
+    })
+    .filter((x): x is RoomSlot => x !== null);
 }
 
-function box(spec: PropSpec) {
+function boxOf(spec: PropSpec) {
   return {
     left: `${spec.left}%` as const,
     top: `${spec.top}%` as const,
     width: `${spec.width}%` as const,
     height: `${spec.height}%` as const,
+    zIndex: spec.z,
   };
 }
 
-/** Piso en falsa perspectiva: líneas que se separan al acercarse. */
-function FloorGrid({ tone, night }: { tone: Tone; night: boolean }) {
+/**
+ * Un prop. El tinte se pinta con una copia de la propia imagen (`tintColor`),
+ * así el resaltado sigue la silueta y no dibuja un rectángulo.
+ */
+function RoomProp({
+  venueId,
+  spec,
+  state,
+  tone,
+}: {
+  venueId: CareerState['venueId'];
+  spec: PropSpec;
+  state: 'idle' | 'lit' | 'selected' | 'locked' | 'muted';
+  tone: Tone;
+}) {
+  const source = roomPropArt(venueId, spec.id);
+  if (!source) return null;
   const t = tones[tone];
-  const lines = Array.from({ length: 7 }, (_, i) => (i + 1) / 8);
+
+  const baseOpacity =
+    state === 'locked' ? 0.4 : state === 'muted' ? 0.62 : state === 'idle' ? 0.9 : 1;
+
   return (
-    <View style={styles.floor} pointerEvents="none">
-      <LinearGradient
-        colors={night ? ['#0A0D14', '#05070B'] : ['#101520', '#07090E']}
-        style={StyleSheet.absoluteFill}
-      />
-      {lines.map((t0, i) => (
-        <View
-          key={i}
-          style={[
-            styles.floorLine,
-            {
-              top: `${Math.pow(t0, 1.9) * 100}%`,
-              opacity: 0.05 + t0 * 0.12,
-              backgroundColor: t.fg,
-            },
-          ]}
+    <View style={styles.fill} pointerEvents="none">
+      <Image source={source} style={[styles.fill, { opacity: baseOpacity }]} contentFit="fill" />
+      {state === 'locked' || state === 'muted' ? (
+        <Image
+          source={source}
+          style={[styles.fill, { opacity: state === 'locked' ? 0.5 : 0.28 }]}
+          contentFit="fill"
+          tintColor="#050810"
         />
-      ))}
-      {[-30, -14, 14, 30].map((deg, i) => (
-        <View
-          key={`v${i}`}
-          style={[
-            styles.floorRay,
-            { transform: [{ rotate: `${deg}deg` }], opacity: 0.06, backgroundColor: t.fg },
-          ]}
+      ) : null}
+      {state === 'lit' || state === 'selected' ? (
+        <Image
+          source={source}
+          style={[styles.fill, { opacity: state === 'selected' ? 0.28 : 0.12 }]}
+          contentFit="fill"
+          tintColor={t.fg}
         />
-      ))}
+      ) : null}
     </View>
   );
 }
 
-/** Foco que persigue al objeto elegido: es la jerarquía de la escena. */
-function KeyLight({
+/** Marca en el piso bajo el objeto elegido. */
+function FloorSpot({
   x,
   y,
   tone,
   on,
+  size = 9,
 }: {
   x: number;
   y: number;
   tone: Tone;
   on: boolean;
+  size?: number;
 }) {
-  const px = useSharedValue(x);
-  const py = useSharedValue(y);
-  const op = useSharedValue(0);
-
+  const pulse = useSharedValue(0);
   useEffect(() => {
-    px.value = withTiming(x, { duration: 320 });
-    py.value = withTiming(y, { duration: 320 });
-    op.value = withTiming(on ? 1 : 0, { duration: 260 });
-  }, [x, y, on, px, py, op]);
+    pulse.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true,
+    );
+  }, [pulse]);
 
-  const style = useAnimatedStyle(() => ({
-    left: `${px.value}%`,
-    top: `${py.value}%`,
-    opacity: op.value,
+  const anim = useAnimatedStyle(() => ({
+    opacity: on ? 0.35 + pulse.value * 0.4 : 0,
+    transform: [{ scale: 0.92 + pulse.value * 0.12 }],
   }));
 
   const t = tones[tone];
   return (
-    <Animated.View style={[styles.keyLight, style]} pointerEvents="none">
-      <View style={[styles.glowRing, styles.glow3, { backgroundColor: t.fg }]} />
-      <View style={[styles.glowRing, styles.glow2, { backgroundColor: t.fg }]} />
-      <View style={[styles.glowRing, styles.glow1, { backgroundColor: t.fg }]} />
-    </Animated.View>
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.floorSpot,
+        {
+          left: `${x}%`,
+          top: `${y}%`,
+          width: `${size}%`,
+          height: `${size * 0.5}%`,
+          marginLeft: `${-size / 2}%`,
+          marginTop: `${(-size * 0.5) / 2}%`,
+          borderColor: t.fg,
+          backgroundColor: t.bg,
+        },
+        anim,
+      ]}
+    />
   );
 }
 
@@ -160,6 +185,10 @@ export function RoomScene({
   selectedId,
   onSelect,
   onNpc,
+  mode = 'week',
+  highlightProp,
+  walkTarget,
+  onHighlightPress,
 }: {
   career: CareerState;
   pack: ContentPack;
@@ -167,12 +196,18 @@ export function RoomScene({
   selectedId: string | null;
   onSelect: (slot: RoomSlot) => void;
   onNpc?: (npc: NpcSpawn) => void;
+  mode?: 'week' | 'situation';
+  highlightProp?: string | null;
+  walkTarget?: { fx: number; fy: number } | null;
+  onHighlightPress?: () => void;
 }) {
   const order = pack.stages.find((s) => s.id === career.stageId)?.order ?? 1;
   const night = career.daypart === 'night';
-  const grad = stageGradient[career.stageId] ?? stageGradient.soloq!;
+  const venueId = career.venueId;
+  const layout = venueLayout(venueId);
   const selected = slots.find((s) => s.spec.id === selectedId) ?? null;
-  const lightTone = selected?.tone ?? 'accent';
+  const hintSpec = (highlightProp ? layout.all.find((p) => p.id === highlightProp) : null) ?? null;
+  const focusTone: Tone = selected?.tone ?? (mode === 'situation' ? 'warn' : 'accent');
   const npcs = npcSpawns(career);
   const upgrades = {
     monitor: hasVisual(career, 'monitor'),
@@ -182,264 +217,144 @@ export function RoomScene({
     desk: hasVisual(career, 'desk'),
   };
 
-  const targetX = selected
-    ? selected.spec.left + selected.spec.width * 0.35
-    : 48;
-  const targetY = selected
-    ? selected.spec.top + selected.spec.height * 0.75
-    : 68;
+  const hotThreads = career.activeThreads.filter((t) => t.intensity >= 40).slice(0, 2);
+  const showBanner = upgrades.banner || order >= 4;
 
-  const ax = useSharedValue(48);
-  const ay = useSharedValue(68);
+  const focusSpec = selected?.spec ?? hintSpec;
+  const playerSpot = walkTarget ?? (focusSpec ? standingSpot(focusSpec) : { fx: 1.2, fy: -2.6 });
+  const player = floorToScreen(venueId, playerSpot.fx, playerSpot.fy);
+  const focusFloor = focusSpec ? floorToScreen(venueId, focusSpec.fx, focusSpec.fy) : null;
 
-  useEffect(() => {
-    ax.value = withTiming(targetX, { duration: 420 });
-    ay.value = withTiming(targetY, { duration: 420 });
-  }, [targetX, targetY, ax, ay]);
-
-  const avatarStyle = useAnimatedStyle(() => ({
-    left: `${ax.value}%`,
-    top: `${ay.value}%`,
-  }));
-
-  const lx = selected ? selected.spec.left + selected.spec.width / 2 : 50;
-  const ly = selected ? selected.spec.top + selected.spec.height / 2 : 45;
-
-  const showBanner =
-    upgrades.banner || DECOR_PROPS.some((d) => d.id === 'banner' && (d.minStageOrder ?? 0) <= order);
+  const propState = (spec: PropSpec) => {
+    if (mode === 'situation') {
+      return highlightProp === spec.id ? ('selected' as const) : ('muted' as const);
+    }
+    const slot = slots.find((s) => s.spec.id === spec.id);
+    if (!slot) return highlightProp === spec.id ? ('lit' as const) : ('idle' as const);
+    if (!slot.available) return 'locked' as const;
+    if (selected && selected.spec.id !== spec.id) return 'muted' as const;
+    if (selected) return 'selected' as const;
+    return 'lit' as const;
+  };
 
   return (
-    <View style={styles.scene}>
-      <LinearGradient colors={grad} locations={[0, 0.6, 1]} style={StyleSheet.absoluteFill} />
-      <LinearGradient
-        colors={
-          night
-            ? ['rgba(8,12,30,0.72)', 'rgba(4,6,12,0.2)']
-            : ['rgba(30,36,50,0.35)', 'rgba(4,6,12,0.15)']
-        }
-        style={StyleSheet.absoluteFill}
-      />
+    <IsoRoom venueId={venueId} night={night} weather={career.worldClock.weather}>
+      {layout.all.map((spec) => {
+        if (spec.id === 'banner' && !showBanner) return null;
+        if (spec.minStageOrder && spec.minStageOrder > order && spec.id !== 'banner') return null;
 
-      <FloorGrid tone={lightTone} night={night} />
-      <View style={styles.baseboard} />
+        const slot = slots.find((s) => s.spec.id === spec.id);
+        const interactive = mode === 'week' && slot?.available;
+        const isSituationFocus = mode === 'situation' && highlightProp === spec.id;
+        const state = propState(spec);
+        const tone = slot?.tone ?? focusTone;
 
-      <KeyLight x={lx} y={ly} tone={lightTone} on={selected !== null} />
-
-      {DECOR_PROPS.filter((d) => {
-        if (d.id === 'banner') return showBanner;
-        return (d.minStageOrder ?? 0) <= order;
-      }).map((d) => (
-        <View key={d.id} style={[styles.prop, box(d), styles.decor]} pointerEvents="none">
-          <PropArt
-            id={d.id}
-            lit={false}
-            tone={lightTone}
-            stageOrder={order}
-            night={night}
-            upgrades={upgrades}
-          />
-        </View>
-      ))}
-
-      {slots.map((slot) => {
-        const isSel = slot.spec.id === selectedId;
-        const dim = selected !== null && !isSel;
         return (
-          <Hotspot
-            key={slot.spec.id}
-            slot={slot}
-            selected={isSel}
-            dim={dim}
-            stageOrder={order}
-            night={night}
-            upgrades={upgrades}
-            onPress={() => onSelect(slot)}
+          <View key={spec.id} style={[styles.prop, boxOf(spec)]} pointerEvents="box-none">
+            <RoomProp venueId={venueId} spec={spec} state={state} tone={tone} />
+
+            {interactive || isSituationFocus ? (
+              <Pressable
+                onPress={
+                  isSituationFocus ? onHighlightPress : slot ? () => onSelect(slot) : undefined
+                }
+                style={styles.fill}
+                accessibilityRole="button"
+                accessibilityLabel={slot?.activity.label ?? 'Foco'}
+              />
+            ) : null}
+
+            {slot && !slot.available && slot.lockLabel ? (
+              <View style={styles.lockTag} pointerEvents="none">
+                <Text style={styles.lockText}>{slot.lockLabel}</Text>
+              </View>
+            ) : null}
+
+            {slot?.available && !selected && mode === 'week' ? (
+              <View
+                style={[styles.pip, { backgroundColor: tones[slot.tone].fg }]}
+                pointerEvents="none"
+              />
+            ) : null}
+
+            {(selected?.spec.id === spec.id || isSituationFocus) && slot ? (
+              <View style={styles.callout} pointerEvents="none">
+                <View style={[styles.calloutLine, { backgroundColor: tones[tone].fg }]} />
+                <View style={[styles.calloutTab, { backgroundColor: tones[tone].fg }]}>
+                  <Text style={styles.calloutText}>{slot.activity.label.toUpperCase()}</Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+
+      {focusFloor ? (
+        <FloorSpot x={focusFloor.x} y={focusFloor.y} tone={focusTone} on size={11} />
+      ) : null}
+
+      {npcs.map((npc) => {
+        const at = floorToScreen(venueId, npc.fx, npc.fy);
+        const threadHit = hotThreads.some((t) => t.actors.includes(npc.kind));
+        const threadKind = hotThreads.find((t) => t.actors.includes(npc.kind))?.kind;
+        return (
+          <WorldActor
+            key={npc.kind}
+            x={at.x}
+            y={at.y}
+            kind={npc.kind}
+            label={npc.name ?? npc.kind}
+            tone={npc.urgency && npc.urgency >= 50 ? 'danger' : threadHit ? 'warn' : 'blue'}
+            urgency={Math.max(npc.urgency ?? 0, threadHit ? 55 : 0)}
+            bubble={
+              threadHit && threadKind
+                ? threadKind.replace(/_/g, ' ')
+                : npc.urgency && npc.urgency >= 55
+                  ? '!'
+                  : null
+            }
+            onPress={onNpc ? () => onNpc(npc) : undefined}
           />
         );
       })}
 
-      {npcs.map((npc) => (
-        <Pressable
-          key={npc.kind}
-          onPress={() => onNpc?.(npc)}
-          style={[
-            styles.npc,
-            { left: `${npc.left}%`, top: `${npc.top}%` },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Hablar con ${npc.kind}`}
-        >
-          <View style={[styles.npcBody, { borderColor: tones.blue.border }]}>
-            <Text style={styles.npcInitial}>{npc.kind.slice(0, 1).toUpperCase()}</Text>
-          </View>
-          <Text style={styles.npcLabel}>{npc.kind}</Text>
-        </Pressable>
-      ))}
-
-      <Animated.View style={[styles.avatar, avatarStyle]} pointerEvents="none">
-        <View style={styles.avatarHead} />
-        <View style={styles.avatarTorso} />
-        <View style={styles.avatarShadow} />
-      </Animated.View>
-
-      <LinearGradient
-        colors={['rgba(4,6,11,0)', 'rgba(4,6,11,0.35)', 'rgba(4,6,11,0.85)']}
-        locations={[0.35, 0.75, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
+      <WorldActor
+        x={player.x}
+        y={player.y}
+        kind="player"
+        label={career.profile.name.slice(0, 1)}
+        tone="accent"
+        isPlayer
       />
-      <View style={styles.vignetteL} pointerEvents="none" />
-      <View style={styles.vignetteR} pointerEvents="none" />
-    </View>
+
+      <View style={styles.venueTag} pointerEvents="none">
+        <Text style={styles.venueTagText}>{layout.name.toUpperCase()}</Text>
+        <Text style={styles.ambience} numberOfLines={1}>
+          {career.worldClock.ambience}
+          {hotThreads.length ? ` · ${hotThreads.length} hilo${hotThreads.length > 1 ? 's' : ''}` : ''}
+        </Text>
+      </View>
+    </IsoRoom>
   );
 }
 
-function Hotspot({
-  slot,
-  selected,
-  dim,
-  stageOrder,
-  night,
-  upgrades,
-  onPress,
-}: {
-  slot: RoomSlot;
-  selected: boolean;
-  dim: boolean;
-  stageOrder: number;
-  night: boolean;
-  upgrades: {
-    monitor: boolean;
-    chair: boolean;
-    glow: boolean;
-    banner: boolean;
-    desk: boolean;
-  };
-  onPress: () => void;
-}) {
-  const t = tones[slot.tone];
-  const lift = useSharedValue(0);
-
-  useEffect(() => {
-    lift.value = withTiming(selected ? 1 : 0, { duration: 240 });
-  }, [selected, lift]);
-
-  const anim = useAnimatedStyle(() => ({
-    transform: [{ translateY: -3 * lift.value }, { scale: 1 + 0.035 * lift.value }],
-  }));
-
-  const opacity = !slot.available ? 0.3 : dim ? 0.52 : 1;
-
-  return (
-    <Animated.View style={[styles.prop, box(slot.spec), anim, { opacity }]}>
-      <Pressable
-        onPress={slot.available ? onPress : undefined}
-        disabled={!slot.available}
-        accessibilityRole="button"
-        accessibilityLabel={
-          slot.available ? slot.activity.label : `${slot.activity.label} — ${slot.lockLabel}`
-        }
-        style={StyleSheet.absoluteFill}
-      >
-        <PropArt
-          id={slot.spec.id as PropId}
-          lit={selected || (!dim && slot.available)}
-          tone={slot.tone}
-          stageOrder={stageOrder}
-          night={night}
-          upgrades={upgrades}
-        />
-        {selected ? (
-          <>
-            <View style={[styles.selCorner, styles.selTL, { borderColor: t.fg }]} />
-            <View style={[styles.selCorner, styles.selBR, { borderColor: t.fg }]} />
-          </>
-        ) : null}
-      </Pressable>
-
-      {!slot.available && slot.lockLabel ? (
-        <View style={styles.lockTag} pointerEvents="none">
-          <Text style={styles.lockText}>{slot.lockLabel}</Text>
-        </View>
-      ) : null}
-
-      {slot.available && !selected ? (
-        <View style={[styles.pip, { backgroundColor: t.fg }]} pointerEvents="none" />
-      ) : null}
-
-      {selected ? (
-        <View style={styles.callout} pointerEvents="none">
-          <View style={[styles.calloutLine, { backgroundColor: t.fg }]} />
-          <View style={[styles.calloutTab, { backgroundColor: t.fg }]}>
-            <Text style={styles.calloutText}>{slot.activity.label.toUpperCase()}</Text>
-          </View>
-        </View>
-      ) : null}
-    </Animated.View>
-  );
-}
+const FILL = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const;
 
 const styles = StyleSheet.create({
-  scene: {
-    width: '100%',
-    aspectRatio: 1.42,
-    overflow: 'hidden',
-    backgroundColor: colors.bgSunken,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  floor: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: `${HORIZON * 100}%`,
-    bottom: 0,
-    overflow: 'hidden',
-  },
-  floorLine: { position: 'absolute', left: 0, right: 0, height: 1 },
-  floorRay: {
-    position: 'absolute',
-    left: '50%',
-    top: '-40%',
-    bottom: '-40%',
-    width: 1,
-  },
-  baseboard: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: `${HORIZON * 100}%`,
-    height: 2,
-    backgroundColor: 'rgba(244,247,251,0.1)',
-  },
-
-  keyLight: {
-    position: 'absolute',
-    width: 0,
-    height: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  glowRing: { position: 'absolute', borderRadius: 999 },
-  glow1: { width: 90, height: 90, marginLeft: -45, marginTop: -45, opacity: 0.1 },
-  glow2: { width: 150, height: 150, marginLeft: -75, marginTop: -75, opacity: 0.06 },
-  glow3: { width: 230, height: 230, marginLeft: -115, marginTop: -115, opacity: 0.035 },
-
+  fill: FILL,
   prop: { position: 'absolute' },
-  decor: { opacity: 0.72 },
 
-  selCorner: {
+  floorSpot: {
     position: 'absolute',
-    width: 12,
-    height: 12,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    zIndex: 1,
   },
-  selTL: { left: -4, top: -4, borderLeftWidth: 2, borderTopWidth: 2 },
-  selBR: { right: -4, bottom: -4, borderRightWidth: 2, borderBottomWidth: 2 },
 
   pip: {
     position: 'absolute',
-    right: -3,
-    top: -3,
+    right: '6%',
+    top: '4%',
     width: 6,
     height: 6,
     borderRadius: 3,
@@ -448,8 +363,8 @@ const styles = StyleSheet.create({
   lockTag: {
     position: 'absolute',
     alignSelf: 'center',
-    bottom: '42%',
-    backgroundColor: 'rgba(8,9,12,0.9)',
+    bottom: '38%',
+    backgroundColor: 'rgba(8,9,12,0.92)',
     borderWidth: 1,
     borderColor: colors.line,
     paddingHorizontal: 5,
@@ -468,7 +383,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: -26,
+    top: -24,
     alignItems: 'center',
   },
   calloutLine: { width: 1, height: 8, opacity: 0.7 },
@@ -485,84 +400,23 @@ const styles = StyleSheet.create({
     transform: [{ skewX: UNSKEW }],
   },
 
-  vignetteL: {
+  venueTag: {
     position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: '18%',
-    backgroundColor: 'rgba(4,6,11,0.45)',
+    left: 8,
+    top: 8,
+    maxWidth: '70%',
+    gap: 2,
+    zIndex: 40,
   },
-  vignetteR: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: '14%',
-    backgroundColor: 'rgba(4,6,11,0.4)',
-  },
-
-  avatar: {
-    position: 'absolute',
-    width: 28,
-    height: 44,
-    marginLeft: -14,
-    marginTop: -40,
-    alignItems: 'center',
-    zIndex: 8,
-  },
-  avatarHead: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accent,
-    borderWidth: 1,
-    borderColor: colors.onAccent,
-  },
-  avatarTorso: {
-    width: 16,
-    height: 20,
-    marginTop: 2,
-    backgroundColor: '#1A2030',
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  avatarShadow: {
-    position: 'absolute',
-    bottom: -2,
-    width: 22,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-
-  npc: {
-    position: 'absolute',
-    width: 36,
-    alignItems: 'center',
-    marginLeft: -18,
-    zIndex: 7,
-  },
-  npcBody: {
-    width: 28,
-    height: 28,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    backgroundColor: colors.bgCard,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  npcInitial: {
-    color: colors.blue,
-    fontFamily: fonts.display,
-    fontSize: 13,
-  },
-  npcLabel: {
-    marginTop: 2,
-    color: colors.muted,
+  venueTagText: {
+    color: colors.text,
     fontFamily: fonts.bodyBold,
-    fontSize: 8,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontSize: 10,
+    letterSpacing: 1.2,
+  },
+  ambience: {
+    color: colors.faint,
+    fontFamily: fonts.body,
+    fontSize: 9,
   },
 });

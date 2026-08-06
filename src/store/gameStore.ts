@@ -10,19 +10,23 @@ import {
   maybePromote,
   nextRng,
   openEvent,
+  openNpcActionSituation,
   retire,
   travelTo,
   type CareerState,
   type ContentPack,
   type EventMinigame,
   type PlayerProfile,
-  type RunDurationId,
+  type RelationKey,
   type VenueId,
   type WeekActivityId,
+  switchRole as applyRoleSwitch,
 } from '../engine';
 import { esportsPack } from '../content/esports/pack';
 import { applyMinigameResult, type MinigameGrade } from '../minigames/applyResult';
 import { resolveMatch } from '../match/simulate';
+import { markNpcMet } from '../engine/npcDirector';
+import { currentPlayableEvent } from '../engine/applyChoice';
 
 type Screen =
   | 'home'
@@ -58,6 +62,7 @@ interface GameStore {
   setScreen: (s: Screen) => void;
   setDraft: (p: Partial<PlayerProfile>) => void;
   startCareer: () => void;
+  switchRole: (roleId: string) => void;
   pickActivity: (activityId: WeekActivityId) => void;
   resolveLiveMatch: (choices: string[], opponent: string) => void;
   continueAfterMatch: () => void;
@@ -69,8 +74,9 @@ interface GameStore {
   travel: (venueId: VenueId) => void;
   continueNextSeason: () => void;
   retireCareer: () => void;
-  talkToNpc: (line: string) => void;
+  talkToNpc: (kind: RelationKey, line: string) => void;
   clearNpcTalk: () => void;
+  softFail: (notice: string) => void;
   reset: () => void;
 }
 
@@ -78,7 +84,6 @@ const defaultDraft: Partial<PlayerProfile> = {
   name: '',
   nationId: 'ar',
   roleId: 'mid',
-  durationId: 'season',
 };
 
 function stageLabel(pack: ContentPack, stageId: string) {
@@ -157,19 +162,64 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   dismissCinematic: () => set({ cinematic: null }),
 
-  talkToNpc: (line) => set({ npcTalk: line }),
+  talkToNpc: (kind, line) => {
+    const { career, pack } = get();
+    if (!career) {
+      set({ npcTalk: line });
+      return;
+    }
+    const action = career.npcStates[kind].pendingAction;
+    const prompted = openNpcActionSituation(pack, career, kind);
+    if (prompted) {
+      set({ career: prompted, screen: 'play', npcTalk: null });
+      return;
+    }
+    let next = markNpcMet(career, kind);
+    if (action === 'avoid') {
+      next = {
+        ...next,
+        relations: {
+          ...next.relations,
+          [kind]: Math.max(0, next.relations[kind] - 2),
+        },
+        lastNotice: `${next.roster[kind].name} evitó la conversación. La distancia se nota.`,
+      };
+    }
+    set({ career: next, npcTalk: line });
+  },
   clearNpcTalk: () => set({ npcTalk: null }),
+
+  softFail: (notice) => {
+    const { career } = get();
+    if (!career) return;
+    set({
+      career: {
+        ...career,
+        stats: {
+          ...career.stats,
+          mentality: Math.max(0, (career.stats.mentality ?? 0) - 2),
+        },
+        lastNotice: notice,
+      },
+    });
+  },
+
+  switchRole: (roleId) => {
+    const { pack, career } = get();
+    if (!career) return;
+    set({ career: applyRoleSwitch(pack, career, roleId) });
+  },
 
   startCareer: () => {
     const { pack, draft } = get();
     if (!draft.nationId || !draft.roleId) return;
-    const durationId = (draft.durationId ?? 'season') as RunDurationId;
     const nation = pack.nations.find((n) => n.id === draft.nationId);
+    const role = pack.roles.find((r) => r.id === draft.roleId);
     const career = createCareer(pack, {
       name: draft.name || 'Prodigy',
       nationId: draft.nationId,
       roleId: draft.roleId,
-      durationId,
+      durationId: 'season',
     });
     set({
       career,
@@ -181,8 +231,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         vibe: 'kickoff',
         title: `${career.profile.name} entra al grind`,
         beats: [
-          `${nation?.name ?? ''} · ${draft.roleId?.toUpperCase()} · ${career.ageYears} años.`,
-          'La carrera no tiene fecha de caducidad: temporadas, plata y un setup que se ve.',
+          `${nation?.name ?? ''} · ${role?.name ?? draft.roleId?.toUpperCase()} · ${career.ageYears} años.`,
+          role?.stakes ??
+            'Tu rol define cómo crecés, cómo jugás las series y cómo te lee el circuito.',
           'Tocá objetos, viajá por la ciudad, hablá con tu gente.',
         ],
       },
@@ -289,15 +340,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
   enterMinigame: () => {
     const { pack, career } = get();
     if (!career?.currentEventId) return;
-    const event = pack.events.find((e) => e.id === career.currentEventId);
-    if (!event?.minigame) return;
+    const event = currentPlayableEvent(pack, career);
+    const mg = career.currentSituation?.minigame ?? event?.minigame;
+    if (!mg) return;
     set({
-      activeMinigame: event.minigame,
+      activeMinigame: mg,
       screen: 'minigame',
       cinematic: {
         vibe: 'skill',
-        title: event.minigame.title,
-        subtitle: event.minigame.blurb,
+        title: mg.title,
+        subtitle: mg.blurb,
         durationMs: 1800,
       },
     });

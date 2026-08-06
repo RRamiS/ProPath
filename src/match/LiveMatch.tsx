@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
@@ -10,6 +11,7 @@ import Animated, {
 import { useGameStore } from '../store/gameStore';
 import { buildMatchBeats, feedLine, MATCH_PHASE_LABELS, pickOpponent } from './simulate';
 import type { MatchFactor, MatchResult } from '../engine/types';
+import { characterArt } from '../room/artManifest';
 import {
   BigNumber,
   Body,
@@ -63,15 +65,21 @@ function Broadcast({
       </View>
 
       <View style={styles.vsRow}>
-        <Text style={styles.teamUs} numberOfLines={1}>
-          {playerName}
-        </Text>
+        <View style={styles.vsSide}>
+          <Image source={characterArt('player')} style={styles.vsSprite} contentFit="contain" />
+          <Text style={styles.teamUs} numberOfLines={1}>
+            {playerName}
+          </Text>
+        </View>
         <View style={styles.vsSlab}>
           <Text style={styles.vs}>VS</Text>
         </View>
-        <Text style={styles.teamThem} numberOfLines={1}>
-          {opponent}
-        </Text>
+        <View style={styles.vsSide}>
+          <Image source={characterArt('rival')} style={styles.vsSprite} contentFit="contain" />
+          <Text style={styles.teamThem} numberOfLines={1}>
+            {opponent}
+          </Text>
+        </View>
       </View>
 
       <View style={styles.momTrack}>
@@ -411,13 +419,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 10,
   },
-  teamUs: {
+  vsSide: {
     flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  vsSprite: {
+    width: 36,
+    height: 48,
+  },
+  teamUs: {
     color: colors.accent,
     fontFamily: fonts.display,
-    fontSize: 17,
+    fontSize: 14,
     letterSpacing: -0.5,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   vsSlab: {
     backgroundColor: colors.bgCard,
@@ -433,11 +450,10 @@ const styles = StyleSheet.create({
     transform: [{ skewX: UNSKEW }],
   },
   teamThem: {
-    flex: 1,
-    textAlign: 'right',
+    textAlign: 'center',
     color: colors.danger,
     fontFamily: fonts.display,
-    fontSize: 17,
+    fontSize: 14,
     letterSpacing: -0.5,
     textTransform: 'uppercase',
   },

@@ -42,7 +42,8 @@ import {
   type Tone,
 } from '../ui/theme';
 import { useGameStore } from '../store/gameStore';
-import { RUN_DURATIONS, type RunDurationId } from '../engine';
+import { SituationScene } from './SituationScene';
+import { currentPlayableEvent } from '../engine/applyChoice';
 
 function Atmosphere({ landing = false, stageId }: { landing?: boolean; stageId?: string }) {
   return (
@@ -173,7 +174,7 @@ export function HomeScreen() {
           <FadeSlide delay={280} style={styles.ctaBlock}>
             <Button label="Empezar carrera" onPress={() => setScreen('create')} />
             <Text style={styles.micro}>
-              {RUN_DURATIONS.map((d) => d.label).join(' · ')} — vos elegís el largo
+              El rol que elijas define tu carrera — y cambiarlo tiene precio
             </Text>
           </FadeSlide>
         </ScrollView>
@@ -207,36 +208,12 @@ export function CreateScreen() {
             <Tag label="Nuevo prospecto" tone="accent" solid />
             <Title style={styles.createTitle}>Tu jugador</Title>
             <Body style={styles.intro}>
-              Duración, nacionalidad y rol definen el arco completo de la carrera.
+              Nacionalidad y rol son apuestas. El rol define cómo crecés, cómo jugás
+              las series y cómo te lee el circuito.
             </Body>
           </FadeSlide>
 
-          <SectionHeader eyebrow="Paso 01" title="Duración" />
-          <View style={styles.gridTwo}>
-            {RUN_DURATIONS.map((d, i) => {
-              const on = draft.durationId === d.id;
-              return (
-                <FadeSlide key={d.id} delay={i * 40} style={styles.gridItem}>
-                  <PressCard
-                    tone={on ? 'accent' : undefined}
-                    selected={on}
-                    onPress={() => setDraft({ durationId: d.id as RunDurationId })}
-                    style={styles.durationCard}
-                  >
-                    <Text style={[styles.durationWeeks, on && { color: colors.accent }]}>
-                      {d.maxTurns}
-                    </Text>
-                    <Text style={[styles.durationLabel, on && { color: colors.text }]}>
-                      {d.label}
-                    </Text>
-                    <Text style={styles.durationHint}>{d.minutesHint}</Text>
-                  </PressCard>
-                </FadeSlide>
-              );
-            })}
-          </View>
-
-          <SectionHeader eyebrow="Paso 02" title="Nombre" tone="blue" />
+          <SectionHeader eyebrow="Paso 01" title="Nombre" tone="blue" />
           <TextInput
             value={draft.name}
             onChangeText={(name) => setDraft({ name })}
@@ -248,7 +225,7 @@ export function CreateScreen() {
           />
 
           <SectionHeader
-            eyebrow="Paso 03"
+            eyebrow="Paso 02"
             title="Nacionalidad"
             tone="violet"
             right={<Tag label="Región y visas" tone="muted" />}
@@ -284,32 +261,50 @@ export function CreateScreen() {
             </Shutter>
           ) : null}
 
-          <SectionHeader eyebrow="Paso 04" title="Rol" tone="gold" />
-          {pack.roles.map((r, i) => (
-            <FadeSlide key={r.id} delay={i * 25}>
-              <Button
-                variant="choice"
-                tone="gold"
-                selected={draft.roleId === r.id}
-                label={r.name}
-                hint={r.description}
-                onPress={() => setDraft({ roleId: r.id })}
-              />
-            </FadeSlide>
-          ))}
+          <SectionHeader
+            eyebrow="Paso 03"
+            title="Rol"
+            tone="gold"
+            right={<Tag label="Decisión clave" tone="gold" />}
+          />
+          <Body style={styles.roleIntro}>
+            No es un skin: es tu identidad mecánica. Podés cambiar entre splits, pero
+            cuesta plata, forma y confianza del staff.
+          </Body>
+          {pack.roles.map((r, i) => {
+            const on = draft.roleId === r.id;
+            return (
+              <FadeSlide key={r.id} delay={i * 25}>
+                <PressCard
+                  tone={on ? 'gold' : undefined}
+                  selected={on}
+                  onPress={() => setDraft({ roleId: r.id })}
+                  style={styles.roleCard}
+                >
+                  <View style={styles.roleHead}>
+                    <Text style={[styles.roleName, on && { color: colors.gold }]}>{r.name}</Text>
+                    <Text style={styles.rolePrimary}>
+                      {r.primaryStats.map((s) => pack.statLabels[s] ?? s).join(' · ')}
+                    </Text>
+                  </View>
+                  <Text style={styles.roleDesc}>{r.description}</Text>
+                  <Text style={styles.roleStakes}>{r.stakes}</Text>
+                </PressCard>
+              </FadeSlide>
+            );
+          })}
 
           <Panel label="Resumen" tone="accent" style={styles.summary}>
             <View style={styles.summaryChips}>
               <Chip label={draft.name?.trim() || 'Prodigy'} tone="accent" />
               <Chip label={nation?.name ?? '—'} tone="violet" />
               <Chip label={role?.name ?? '—'} tone="gold" />
-              <Chip
-                label={
-                  RUN_DURATIONS.find((d) => d.id === draft.durationId)?.label ?? 'Estándar'
-                }
-                tone="blue"
-              />
             </View>
+            {role ? (
+              <Text style={styles.summaryStakes} numberOfLines={3}>
+                {role.stakes}
+              </Text>
+            ) : null}
           </Panel>
 
           <View style={styles.row}>
@@ -333,6 +328,7 @@ export function PlayScreen() {
   const career = useGameStore((s) => s.career);
   const choose = useGameStore((s) => s.choose);
   const enterMinigame = useGameStore((s) => s.enterMinigame);
+  const softFail = useGameStore((s) => s.softFail);
   const reset = useGameStore((s) => s.reset);
 
   if (!career || !career.currentEventId) {
@@ -346,7 +342,7 @@ export function PlayScreen() {
     );
   }
 
-  const event = pack.events.find((e) => e.id === career.currentEventId);
+  const event = currentPlayableEvent(pack, career);
 
   if (!event) {
     return (
@@ -370,7 +366,7 @@ export function PlayScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <FadeSlide key={`${career.currentEventId}-${career.turn}`}>
+          <FadeSlide key={`${career.currentEventId}-${career.turn}-${career.currentSituation?.instanceId}`}>
             <CareerHud career={career} pack={pack} compact onExit={reset} />
 
             {last ? (
@@ -384,47 +380,13 @@ export function PlayScreen() {
               </View>
             ) : null}
 
-            <Panel label="Atributos" style={styles.statsCard}>
-              {Object.entries(pack.statLabels).map(([id, label], i) => (
-                <StatBar
-                  key={`${id}-${career.turn}`}
-                  label={label}
-                  value={career.stats[id] ?? 0}
-                  delay={i * 30}
-                />
-              ))}
-            </Panel>
-
-            <SectionHeader
-              eyebrow={event.minigame ? 'Skill check disponible' : 'Momento de la semana'}
-              title={event.title}
-              tone={event.minigame ? 'gold' : 'accent'}
+            <SituationScene
+              career={career}
+              pack={pack}
+              onChoose={choose}
+              onMinigame={enterMinigame}
+              onSoftFail={softFail}
             />
-            <Body style={styles.eventBody}>{event.body}</Body>
-
-            {event.minigame ? (
-              <Panel tone="gold" glow label="Skill check" style={styles.skillCard}>
-                <View style={styles.skillHead}>
-                  <Icon name="spark" color={colors.gold} size={18} />
-                  <Text style={styles.skillTitle}>{event.minigame.title}</Text>
-                </View>
-                <Text style={styles.skillBlurb}>{event.minigame.blurb}</Text>
-                <Button label="Jugar minijuego" tone="gold" onPress={enterMinigame} />
-                <Text style={styles.orSkip}>o resolvelo con una decisión de abajo</Text>
-              </Panel>
-            ) : null}
-
-            {event.choices.map((c, i) => (
-              <FadeSlide key={c.id} delay={i * 45}>
-                <PressCard onPress={() => choose(c.id)} style={styles.choiceCard}>
-                  <Text style={styles.choiceLabel}>{c.label}</Text>
-                  {c.hint ? <Text style={styles.choiceHint}>{c.hint}</Text> : null}
-                  <View style={styles.choiceChips}>
-                    <EffectChips effect={c.effect} statLabels={pack.statLabels} />
-                  </View>
-                </PressCard>
-              </FadeSlide>
-            ))}
           </FadeSlide>
         </ScrollView>
       </SafeAreaView>
@@ -635,23 +597,54 @@ const styles = StyleSheet.create({
     flexBasis: '30%',
     minWidth: 104,
   },
-  durationCard: { height: '100%', gap: 1 },
-  durationWeeks: {
+  roleIntro: {
     color: colors.muted,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    letterSpacing: -1.2,
-  },
-  durationLabel: {
-    color: colors.muted,
-    fontFamily: fonts.bodyBold,
-    fontSize: 13,
-  },
-  durationHint: {
-    color: colors.faint,
     fontFamily: fonts.body,
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 4,
+  },
+  roleCard: { gap: 6, paddingVertical: 12 },
+  roleHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  roleName: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 16,
+    letterSpacing: 0.4,
+  },
+  rolePrimary: {
+    color: colors.faint,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    flexShrink: 1,
+    textAlign: 'right',
+  },
+  roleDesc: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  roleStakes: {
+    color: colors.gold,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    opacity: 0.9,
+  },
+  summaryStakes: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 8,
   },
   nationCard: {
     height: '100%',

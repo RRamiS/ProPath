@@ -9,6 +9,9 @@ import {
   closeSeason,
   maybeForceRetire,
 } from './season';
+import { decayThreads } from './memory';
+import { tickNpcWorld } from './npcDirector';
+import { gainRoleMastery, roleTrainingBoost } from './role';
 import { venueAllows } from './venues';
 import type {
   CareerState,
@@ -267,6 +270,10 @@ export function applyWeekActivity(
   if (activityId === 'soloq' && setup.soloqMechanics) {
     boosted.mechanics = (boosted.mechanics ?? 0) + setup.soloqMechanics;
   }
+  const roleBoost = roleTrainingBoost(pack, state, activityId);
+  for (const [k, v] of Object.entries(roleBoost)) {
+    if (typeof v === 'number') boosted[k] = (boosted[k] ?? 0) + v;
+  }
 
   // Contenido paga cash real, no solo el stat.
   let cashGain = 0;
@@ -286,26 +293,30 @@ export function applyWeekActivity(
   const relations = applyRelations(state.relations, impact.relations);
 
   if (!impact.closesWeek) {
-    return {
-      kind: 'slot',
-      state: {
-        ...state,
-        stats,
-        form,
-        fatigue,
-        relations,
-        cash: state.cash + cashGain,
-        daypart: 'night',
-        lastActivity: activityId,
-        rngSeed: seed,
-        lastNotice: cashGain
-          ? `${activity.notice} +$${cashGain}`
-          : activity.notice,
-        ticker: tickerFor(activityId, state),
-        phase: 'hub',
-        currentEventId: null,
-      },
+    const masteryGain =
+      activityId === 'rest' || activityId === 'content'
+        ? 0
+        : activityId === 'vod' || activityId === 'scrim' || activityId === 'soloq'
+          ? 2
+          : 1;
+    let slotState: CareerState = {
+      ...state,
+      stats,
+      form,
+      fatigue,
+      relations,
+      cash: state.cash + cashGain,
+      daypart: 'night',
+      lastActivity: activityId,
+      rngSeed: seed,
+      lastNotice: cashGain ? `${activity.notice} +$${cashGain}` : activity.notice,
+      ticker: tickerFor(activityId, state),
+      phase: 'hub',
+      currentEventId: null,
+      currentSituation: null,
     };
+    if (masteryGain) slotState = gainRoleMastery(slotState, masteryGain);
+    return { kind: 'slot', state: slotState };
   }
 
   form = clamp(form - 1 - age.formDecay);
@@ -339,10 +350,13 @@ export function applyWeekActivity(
     ticker: tickerFor(activityId, state),
     phase: 'hub',
     currentEventId: null,
+    currentSituation: null,
   };
 
   next = applyWeeklyCosts(next);
   next = maybePromote(next);
+  next = decayThreads(next);
+  next = tickNpcWorld(next, isMatchWeek(next, pack));
 
   const claim = claimObjectives(next);
   if (claim.claimed.length > 0) {

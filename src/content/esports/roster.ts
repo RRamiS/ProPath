@@ -1,19 +1,9 @@
-import type { Relations } from '../../engine/types';
+import type { PersistedRoster, Relations, RosterMember } from '../../engine/types';
 
-export interface RosterNpc {
-  id: keyof Relations | string;
-  name: string;
-  role: string;
-  blurb: string;
-}
+export type RosterNpc = RosterMember;
 
-/** NPCs inventados — sin orgs ni marcas reales */
-export function buildRoster(nationId: string, roleId: string): {
-  coach: RosterNpc;
-  duo: RosterNpc;
-  rival: RosterNpc;
-  manager: RosterNpc;
-} {
+/** NPCs inventados — sin orgs ni marcas reales. Persistido en CareerState.roster. */
+export function buildRoster(nationId: string, roleId: string): PersistedRoster {
   const duoByRole: Record<string, { name: string; role: string }> = {
     mid: { name: 'Nyx', role: 'Jungle' },
     jungle: { name: 'Vera', role: 'Mid' },

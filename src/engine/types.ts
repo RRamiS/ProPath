@@ -42,6 +42,8 @@ export function getDuration(id: RunDurationId): RunDuration {
   return RUN_DURATIONS.find((d) => d.id === id) ?? RUN_DURATIONS[1]!;
 }
 
+export type WeekActivityId = 'soloq' | 'scrim' | 'vod' | 'rest' | 'content' | 'match';
+
 export interface Nation {
   id: string;
   name: string;
@@ -58,6 +60,14 @@ export interface Role {
   name: string;
   description: string;
   startingStats: Partial<Stats>;
+  /** Por qué elegir este rol importa: riesgo / identidad. */
+  stakes: string;
+  /** Stats que crecen más fuerte on-role. */
+  primaryStats: StatId[];
+  /** Llamadas de partido donde este rol brilla. */
+  signatureCalls: string[];
+  /** Actividad semanal que más te define. */
+  signatureActivity: WeekActivityId;
 }
 
 export interface Stage {
@@ -102,7 +112,11 @@ export interface EventMinigame {
   difficulty: 1 | 2 | 3;
 }
 
-export type WeekActivityId = 'soloq' | 'scrim' | 'vod' | 'rest' | 'content' | 'match';
+/** La semana se juega en dos bloques: lo que hacés de día y lo que hacés de noche. */
+export type Daypart = 'day' | 'night';
+
+/** Sedes del mapa: cada una abre una habitación distinta. */
+export type VenueId = 'home' | 'gym' | 'cafe' | 'academy' | 'arena';
 
 export interface GameEvent {
   id: string;
@@ -147,11 +161,138 @@ export interface PlayerProfile {
   durationId: RunDurationId;
 }
 
+export type RelationKey = 'coach' | 'duo' | 'rival' | 'manager';
+
 export interface Relations {
   coach: number;
   duo: number;
   rival: number;
   manager: number;
+}
+
+export type NpcMood = 'calm' | 'tense' | 'warm' | 'cold' | 'urgent';
+export type WeatherId = 'clear' | 'rain' | 'heat' | 'fog';
+export type ThreadKind =
+  | 'contract'
+  | 'starting_spot'
+  | 'rivalry'
+  | 'burnout'
+  | 'sponsor'
+  | 'roster_rift';
+
+export interface RosterMember {
+  id: RelationKey;
+  name: string;
+  role: string;
+  blurb: string;
+}
+
+export interface PersistedRoster {
+  coach: RosterMember;
+  duo: RosterMember;
+  rival: RosterMember;
+  manager: RosterMember;
+}
+
+export type NpcActionId = 'invite' | 'avoid' | 'claim' | 'offer' | 'leak';
+
+export interface NpcState {
+  kind: RelationKey;
+  venueId: VenueId;
+  mood: NpcMood;
+  energy: number;
+  agenda: string;
+  trust: number;
+  lastMetTurn: number;
+  urgency: number;
+  /** Acción autónoma pendiente (se resuelve al hablar o al avanzar semana). */
+  pendingAction: NpcActionId | null;
+}
+
+export interface MemoryEntry {
+  archetypeId: string;
+  instanceId: string;
+  actors: RelationKey[];
+  choiceId: string | null;
+  turn: number;
+  stage: string;
+  outcome: string;
+  intensity: number;
+  cause?: string;
+  venueId?: VenueId;
+}
+
+export interface NarrativeThread {
+  id: string;
+  kind: ThreadKind;
+  actors: RelationKey[];
+  intensity: number;
+  openedTurn: number;
+  lastBeatTurn: number;
+  flags: Record<string, string | number | boolean>;
+}
+
+export interface WorldClock {
+  weather: WeatherId;
+  crowd: number;
+  ambience: string;
+}
+
+/** Verbo gráfico con el que se resuelve la situación en escena. */
+export type SituationVerb = 'talk' | 'sort' | 'timing' | 'choice';
+
+export interface SituationChoice {
+  id: string;
+  label: string;
+  hint?: string;
+  verb: SituationVerb;
+  effect: ChoiceEffect;
+  /** Deltas relativos a los actores materializados, resueltos al instanciar. */
+  actorRelations?: {
+    primary?: number;
+    others?: number;
+  };
+  /** Texto de resolución tras elegir. */
+  outcome?: string;
+}
+
+export interface SituationArchetype {
+  id: string;
+  family: 'legacy' | 'roster' | 'sponsor' | 'performance';
+  titleTemplate: string;
+  bodyTemplate: string;
+  stages: string[];
+  nationTags?: string[];
+  excludeNationTags?: string[];
+  activityTags?: WeekActivityId[];
+  requireRelations?: Partial<Relations>;
+  actors: RelationKey[];
+  venues?: VenueId[];
+  causes: string[];
+  weight?: number;
+  cooldownTurns?: number;
+  actorCooldownTurns?: number;
+  choices: SituationChoice[];
+  minigame?: EventMinigame;
+  threadKind?: ThreadKind;
+}
+
+export interface SituationInstance {
+  instanceId: string;
+  archetypeId: string;
+  family: SituationArchetype['family'];
+  title: string;
+  body: string;
+  actors: RelationKey[];
+  cause: string;
+  venueId: VenueId;
+  choices: SituationChoice[];
+  minigame?: EventMinigame;
+  threadKind?: ThreadKind;
+  visual: {
+    accent: 'blue' | 'gold' | 'warn' | 'danger' | 'accent' | 'violet';
+    propHint: string;
+  };
 }
 
 /** Un factor que empujó el resultado, para que el jugador entienda por qué. */
@@ -174,12 +315,6 @@ export interface MatchResult {
 
 export type CareerPhase = 'hub' | 'event' | 'match' | 'seasonBreak';
 
-/** La semana se juega en dos bloques: lo que hacés de día y lo que hacés de noche. */
-export type Daypart = 'day' | 'night';
-
-/** Sedes del mapa: cada una abre una habitación distinta. */
-export type VenueId = 'home' | 'gym' | 'cafe' | 'academy' | 'arena';
-
 export interface CareerState {
   packId: string;
   profile: PlayerProfile;
@@ -191,8 +326,11 @@ export interface CareerState {
   /** Semanas por temporada (antes era el hard-end). */
   maxTurns: number;
   durationId: RunDurationId;
+  /** IDs de arquetipo recientes (compat + anti-repeat rápido). */
   history: string[];
   currentEventId: string | null;
+  /** Situación materializada actual (storylet instanciado). */
+  currentSituation: SituationInstance | null;
   endingId: string | null;
   rngSeed: number;
   lastNotice: string | null;
@@ -226,4 +364,18 @@ export interface CareerState {
   seasonWins: number;
   /** Losses de la temporada en curso. */
   seasonLosses: number;
+  /** Roster con nombres reales persistidos. */
+  roster: PersistedRoster;
+  npcStates: Record<RelationKey, NpcState>;
+  memories: MemoryEntry[];
+  activeThreads: NarrativeThread[];
+  worldClock: WorldClock;
+  /** Maestría 0–100 por rol. Define bonus de partido y training. */
+  roleMastery: Record<string, number>;
+  /** Rol anterior tras un switch (narrativa / UI). */
+  previousRoleId: string | null;
+  /** Cuántas veces cambiaste de carril en la carrera. */
+  roleSwitches: number;
+  /** Semanas restantes antes de otro switch (0 = libre en season break). */
+  roleSwitchCooldown: number;
 }

@@ -2,9 +2,9 @@
  * Rangos de relación al estilo confidant: el número suelto no dice nada,
  * el rango sí, porque desbloquea un efecto concreto y visible.
  */
-import type { CareerState, Relations } from './types';
+import type { CareerState, RelationKey, Relations } from './types';
 
-export type RelationKey = keyof Relations;
+export type { RelationKey };
 
 /** Umbral mínimo de cada rango (índice = rango). */
 export const RANK_THRESHOLDS = [0, 30, 48, 64, 78, 90];

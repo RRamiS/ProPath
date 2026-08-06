@@ -1,7 +1,8 @@
 /**
  * City strip: pocas sedes con peso (Kingdom), cada una abre un room.
  */
-import type { CareerState, VenueId, WeekActivityId } from './types';
+import { contextualNpcLine, npcSpawnsFromState } from './npcDirector';
+import type { CareerState, RelationKey, VenueId, WeekActivityId } from './types';
 
 export interface VenueDef {
   id: VenueId;
@@ -87,44 +88,22 @@ export function travelTo(state: CareerState, venueId: VenueId): CareerState {
     ticker: [`VIAJE · ${venue.label}`, ...state.ticker],
     phase: 'hub',
     currentEventId: null,
+    currentSituation: null,
   };
 }
 
 export interface NpcSpawn {
-  kind: 'coach' | 'duo' | 'rival' | 'manager';
-  left: number;
-  top: number;
+  kind: RelationKey;
+  /** Coordenadas de piso en unidades de habitación (-5..5) */
+  fx: number;
+  fy: number;
+  mood?: string;
+  urgency?: number;
+  name?: string;
 }
 
 export function npcSpawns(state: CareerState): NpcSpawn[] {
-  const venue = getVenue(state.venueId);
-  const night = state.daypart === 'night';
-  const out: NpcSpawn[] = [];
-
-  for (const kind of venue.npcs) {
-    if (kind === 'coach' && night && state.venueId !== 'arena') continue;
-    if (kind === 'manager' && !night && state.venueId === 'cafe') continue;
-    if (kind === 'rival' && state.venueId === 'home') continue;
-
-    const slot =
-      kind === 'coach'
-        ? { left: 72, top: 48 }
-        : kind === 'duo'
-          ? { left: 18, top: 58 }
-          : kind === 'rival'
-            ? { left: 78, top: 42 }
-            : { left: 55, top: 52 };
-
-    out.push({ kind, ...slot });
-  }
-
-  if (state.venueId === 'home' && night && state.relations.duo >= 40) {
-    if (!out.some((n) => n.kind === 'duo')) {
-      out.push({ kind: 'duo', left: 22, top: 56 });
-    }
-  }
-
-  return out;
+  return npcSpawnsFromState(state);
 }
 
 export const NPC_LINES: Record<NpcSpawn['kind'], { day: string[]; night: string[] }> = {
@@ -173,8 +152,10 @@ export const NPC_LINES: Record<NpcSpawn['kind'], { day: string[]; night: string[
 export function npcLine(
   kind: NpcSpawn['kind'],
   daypart: 'day' | 'night',
-  seed: number
+  seed: number,
+  state?: CareerState
 ): string {
+  if (state) return contextualNpcLine(state, kind);
   const pool = NPC_LINES[kind][daypart];
   return pool[seed % pool.length]!;
 }

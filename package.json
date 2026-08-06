@@ -7,7 +7,9 @@
     "@expo-google-fonts/syne": "^0.4.2",
     "@expo/metro-runtime": "^57.0.8",
     "expo": "~57.0.10",
+    "expo-asset": "~57.0.8",
     "expo-font": "~57.0.1",
+    "expo-image": "~57.0.2",
     "expo-linear-gradient": "~57.0.1",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
@@ -30,7 +32,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "export:web": "expo export -p web",
-    "smoke": "tsx scripts/smoke-career.ts"
+    "smoke": "tsx scripts/smoke-career.ts",
+    "render:rooms": "node -e \"const {spawnSync}=require('child_process'); const b=process.env.BLENDER||'C:\\\\Program Files\\\\Blender Foundation\\\\Blender 5.2\\\\blender.exe'; const r=spawnSync(b,['--background','--python','scripts/blender_render_rooms.py'],{stdio:'inherit'}); process.exit(r.status??1);\""
   },
   "private": true
 }

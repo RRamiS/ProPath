@@ -8,3 +8,8 @@ export * from './relations';
 export * from './economy';
 export * from './season';
 export * from './venues';
+export * from './memory';
+export * from './situations';
+export * from './situationDirector';
+export * from './npcDirector';
+export * from './role';
