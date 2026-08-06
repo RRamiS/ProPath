@@ -315,4 +315,90 @@ export const hubEvents: GameEvent[] = [
       },
     ],
   },
+
+  // —— Eventos legacy con filtro de rol ——
+  {
+    id: 'mid_wave_lab',
+    title: 'Lab de wave mid',
+    body: '{{coach}} pone el VOD en pausa: tu crash timing está un segundo tarde. Solo mid lo ve así.',
+    stages: ['soloq', 'academy', 'challengers'],
+    roleTags: ['mid'],
+    activityTags: ['vod', 'soloq'],
+    weight: 10,
+    choices: [
+      {
+        id: 'drill_waves',
+        label: 'Drill de oleadas',
+        effect: { stats: { gameSense: 6, mechanics: 2 }, relations: { coach: 4 } },
+      },
+      {
+        id: 'skip_lab',
+        label: 'Saltar el lab',
+        effect: { stats: { mentality: -2 }, relations: { coach: -3 } },
+      },
+    ],
+  },
+  {
+    id: 'jgl_camp_timing',
+    title: 'Timing de camps',
+    body: 'El clear del segundo buff te deja tarde al scuttle. {{coach}} quiere un path nuevo esta semana.',
+    stages: ['academy', 'challengers', 'tier1'],
+    roleTags: ['jungle'],
+    activityTags: ['vod', 'scrim'],
+    weight: 10,
+    choices: [
+      {
+        id: 'new_path',
+        label: 'Adoptar el path',
+        effect: { stats: { gameSense: 7 }, relations: { coach: 5 } },
+      },
+      {
+        id: 'keep_style',
+        label: 'Mantener tu estilo',
+        effect: { stats: { mechanics: 3, teamwork: -2 }, relations: { coach: -4 } },
+      },
+    ],
+  },
+  {
+    id: 'bot_lane_sync',
+    title: 'Sync de bot lane',
+    body: '{{duo}} propone un plan de trades. O alinean o la lane se rompe sola.',
+    stages: ['soloq', 'academy', 'challengers'],
+    roleTags: ['adc', 'support'],
+    activityTags: ['scrim', 'soloq'],
+    weight: 10,
+    choices: [
+      {
+        id: 'sync_plan',
+        label: 'Alinear el plan',
+        effect: { stats: { teamwork: 6, gameSense: 2 }, relations: { duo: 6 } },
+      },
+      {
+        id: 'solo_carry',
+        label: 'Jugar tu tempo',
+        effect: { stats: { mechanics: 4, teamwork: -3 }, relations: { duo: -4 } },
+      },
+    ],
+  },
+  {
+    id: 'top_matchup_book',
+    title: 'Libro de matchups',
+    body: '{{coach}} te pasa un doc: counters y freeze windows. En top, esto es supervivencia.',
+    stages: ['soloq', 'academy', 'challengers'],
+    roleTags: ['top'],
+    activityTags: ['vod', 'soloq'],
+    weight: 10,
+    choices: [
+      {
+        id: 'study_book',
+        label: 'Estudiar el libro',
+        effect: { stats: { gameSense: 5, mentality: 3 }, relations: { coach: 4 } },
+      },
+      {
+        id: 'queue_blind',
+        label: 'Queuear a ciegas',
+        effect: { stats: { mechanics: 3, mentality: -3 }, relations: { coach: -2 } },
+      },
+    ],
+  },
 ];

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
@@ -9,15 +8,14 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useGameStore } from '../store/gameStore';
+import { ArenaScene } from './ArenaScene';
 import { buildMatchBeats, feedLine, MATCH_PHASE_LABELS, pickOpponent } from './simulate';
 import type { MatchFactor, MatchResult } from '../engine/types';
-import { characterArt } from '../room/artManifest';
 import {
   BigNumber,
   Body,
   Button,
   Chip,
-  LiveDot,
   Panel,
   PopIn,
   PressCard,
@@ -37,14 +35,11 @@ import {
   UNSKEW,
 } from '../ui/theme';
 
-function Broadcast({
-  playerName,
-  opponent,
+/** Barra de impulso bajo el diorama — los sprites viven en ArenaScene. */
+function MomentumBar({
   momentum,
   subtitle,
 }: {
-  playerName: string;
-  opponent: string;
   momentum: SharedValue<number>;
   subtitle: string;
 }) {
@@ -55,33 +50,6 @@ function Broadcast({
   return (
     <View style={styles.broadcast}>
       <View style={[styles.broadcastEdge, { backgroundColor: colors.danger }]} />
-
-      <View style={styles.liveRow}>
-        <View style={styles.liveTag}>
-          <LiveDot tone="danger" size={6} />
-          <Text style={styles.liveTagText}>EN VIVO</Text>
-        </View>
-        <Text style={styles.network}>PROPATH TV</Text>
-      </View>
-
-      <View style={styles.vsRow}>
-        <View style={styles.vsSide}>
-          <Image source={characterArt('player')} style={styles.vsSprite} contentFit="contain" />
-          <Text style={styles.teamUs} numberOfLines={1}>
-            {playerName}
-          </Text>
-        </View>
-        <View style={styles.vsSlab}>
-          <Text style={styles.vs}>VS</Text>
-        </View>
-        <View style={styles.vsSide}>
-          <Image source={characterArt('rival')} style={styles.vsSprite} contentFit="contain" />
-          <Text style={styles.teamThem} numberOfLines={1}>
-            {opponent}
-          </Text>
-        </View>
-      </View>
-
       <View style={styles.momTrack}>
         <Animated.View style={[styles.momFill, barStyle]} />
         <View style={styles.momCenter} />
@@ -90,7 +58,6 @@ function Broadcast({
         <Text style={[styles.momLabel, { color: colors.accent }]}>IMPULSO</Text>
         <Text style={[styles.momLabel, { color: colors.danger }]}>PRESIÓN RIVAL</Text>
       </View>
-
       <Text style={styles.formLine}>{subtitle}</Text>
     </View>
   );
@@ -274,14 +241,23 @@ export function LiveMatchScreen() {
     setPhaseIndex((p) => p + 1);
   };
 
+  const livePhase = beat?.phase ?? 'draft';
+
   return (
     <View style={styles.root}>
       <MobaBackdrop intensity="cinematic" stageId="arena" />
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Broadcast
+          <ArenaScene
+            phase={showingResult ? 'late' : livePhase}
+            momentum={momentum}
             playerName={career.profile.name}
             opponent={opponent}
+            won={showingResult ? career.lastMatch!.won : null}
+            night={career.daypart === 'night'}
+          />
+
+          <MomentumBar
             momentum={momentum}
             subtitle={
               showingResult

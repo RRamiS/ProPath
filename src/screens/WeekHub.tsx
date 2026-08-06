@@ -306,6 +306,17 @@ export function WeekHubScreen() {
           <FadeSlide key={`hub-${career.turn}-${career.daypart}-${career.venueId}`}>
             <CareerHud career={career} pack={pack} onExit={reset} />
 
+            {career.turn === 0 && career.daypart === 'day' ? (
+              <Panel tone="gold" glow label="Primera semana" style={styles.block}>
+                <Text style={styles.noticeText}>
+                  Tocá un objeto de la sala para elegir qué hacer. Sos{' '}
+                  {(pack.roles.find((r) => r.id === career.profile.roleId)?.name ??
+                    career.profile.roleId).toUpperCase()}
+                  : entrená tu actividad firma y la maestría sube — eso pesa en las series.
+                </Text>
+              </Panel>
+            ) : null}
+
             {career.lastNotice ? (
               <Shutter>
                 <Panel tone="accent" glow label="Parte" style={styles.block}>

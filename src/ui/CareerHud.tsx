@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { masteryTierLabel, roleMasteryOf } from '../engine/role';
 import type { CareerState, ContentPack } from '../engine/types';
 import { Gauge, SeasonStrip } from './components';
 import { NationBadge } from './NationBadge';
@@ -23,6 +24,9 @@ function fatigueHint(fatigue: number): string | undefined {
 export function CareerHud({ career, pack, compact, onExit }: Props) {
   const stage = pack.stages.find((s) => s.id === career.stageId);
   const nation = pack.nations.find((n) => n.id === career.profile.nationId);
+  const role = pack.roles.find((r) => r.id === career.profile.roleId);
+  const mastery = roleMasteryOf(career);
+  const masteryTier = masteryTierLabel(mastery);
   const tone = stageTone[career.stageId] ?? 'accent';
   const t = tones[tone];
 
@@ -63,10 +67,7 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
             <View style={styles.identityMeta}>
               <NationBadge nationId={nation?.id} tone={tone} />
               <Text style={styles.role}>
-                {career.profile.roleId.toUpperCase()}
-                {typeof career.roleMastery?.[career.profile.roleId] === 'number'
-                  ? ` · ${career.roleMastery[career.profile.roleId]}`
-                  : ''}
+                {(role?.name ?? career.profile.roleId).toUpperCase()} · {masteryTier}
               </Text>
               <Text style={styles.age}>{career.ageYears}a</Text>
             </View>
@@ -79,6 +80,21 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
             </Text>
           </View>
         </View>
+
+        {!compact ? (
+          <View style={styles.masteryRow}>
+            <Text style={styles.masteryLabel}>MAESTRÍA</Text>
+            <View style={styles.masteryTrack}>
+              <View
+                style={[
+                  styles.masteryFill,
+                  { width: `${Math.max(4, mastery)}%`, backgroundColor: colors.gold },
+                ]}
+              />
+            </View>
+            <Text style={styles.masteryNum}>{mastery}</Text>
+          </View>
+        ) : null}
 
         <SeasonStrip turn={career.weekInSeason} maxTurns={career.maxTurns} tone={tone} />
 
@@ -211,6 +227,32 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontFamily: fonts.bodyBold,
     fontSize: 9,
+  },
+  masteryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  masteryLabel: {
+    color: colors.gold,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.2,
+  },
+  masteryTrack: {
+    flex: 1,
+    height: 5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  masteryFill: { height: '100%' },
+  masteryNum: {
+    color: colors.muted,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    minWidth: 22,
+    textAlign: 'right',
   },
   record: {
     alignItems: 'flex-end',

@@ -127,6 +127,8 @@ export interface GameEvent {
   excludeNationTags?: string[];
   /** Preferir si la última actividad fue esta */
   activityTags?: WeekActivityId[];
+  /** Si está seteado, solo aplica a estos roleIds (mid/jungle/adc/…). */
+  roleTags?: string[];
   /** Requiere relación mínima */
   requireRelations?: Partial<Relations>;
   weight?: number;
@@ -265,6 +267,8 @@ export interface SituationArchetype {
   nationTags?: string[];
   excludeNationTags?: string[];
   activityTags?: WeekActivityId[];
+  /** Si está seteado, solo aplica a estos roleIds. */
+  roleTags?: string[];
   requireRelations?: Partial<Relations>;
   actors: RelationKey[];
   venues?: VenueId[];

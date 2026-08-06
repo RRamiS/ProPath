@@ -28,21 +28,42 @@ export function masteryFactor(state: CareerState): number {
   return Math.max(0, Math.min(1, roleMasteryOf(state) / 100));
 }
 
+export function masteryTierLabel(n: number): string {
+  if (n >= 75) return 'Élite';
+  if (n >= 50) return 'Sólido';
+  if (n >= 25) return 'En forma';
+  return 'Novato';
+}
+
 export function gainRoleMastery(
   state: CareerState,
   amount: number,
   roleId = state.profile.roleId
 ): CareerState {
   if (amount <= 0) return state;
-  const current = state.roleMastery[roleId] ?? 0;
+  const current = state.roleMastery?.[roleId] ?? 0;
   // Soft cap: cerca de 100 cuesta más.
   const soft = current >= 80 ? amount * 0.45 : current >= 60 ? amount * 0.7 : amount;
   const next = Math.max(0, Math.min(100, Math.round(current + soft)));
   if (next === current) return state;
-  return {
+
+  const thresholds = [25, 50, 75];
+  const crossed = thresholds.find((t) => current < t && next >= t);
+  const out: CareerState = {
     ...state,
     roleMastery: { ...state.roleMastery, [roleId]: next },
   };
+  if (crossed != null) {
+    const tier = masteryTierLabel(next);
+    return {
+      ...out,
+      ticker: [`MAESTRÍA · ${roleId.toUpperCase()} ${tier}`, ...out.ticker].slice(0, 8),
+      lastNotice:
+        out.lastNotice ??
+        `Tu maestría de ${roleId.toUpperCase()} subió a ${tier} (${next}).`,
+    };
+  }
+  return out;
 }
 
 /** Bonus de stats primarios al entrenar / jugar on-role. */

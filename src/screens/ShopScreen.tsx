@@ -1,33 +1,34 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { canAfford, ownsItem, SHOP_CATALOG, type ShopItem } from '../engine/economy';
+import { canAfford, hasVisual, ownsItem, SHOP_CATALOG, type ShopItem } from '../engine/economy';
 import { Image } from 'expo-image';
 import { IsoRoom } from '../room/IsoRoom';
-import { venueLayout, type PropId } from '../room/layout';
+import { venueLayout } from '../room/layout';
 import { roomPropArt } from '../room/roomArt';
+import { RigUpgrades, type RigUpgradeFlags } from '../room/RigUpgrades';
 import { useGameStore } from '../store/gameStore';
 import { Button, Panel, Tag } from '../ui/components';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
 import { colors, fonts, maxContentWidth, space, tones } from '../ui/theme';
 
-const VISUAL_PROP: Record<ShopItem['visual'], PropId> = {
-  monitor: 'tv',
-  chair: 'rig',
-  glow: 'window',
-  banner: 'banner',
-  desk: 'shelf',
-};
-
-/** Vista previa: la pieza real con el objeto del ítem destacado en su sitio. */
-function RoomPreview({ focusId }: { focusId: PropId }) {
+/** Vista previa: la pieza real con el setup aplicado / ítem en foco. */
+function RoomPreview({
+  upgrades,
+  focusVisual,
+}: {
+  upgrades: RigUpgradeFlags & { banner?: boolean };
+  focusVisual: ShopItem['visual'];
+}) {
   const layout = venueLayout('home');
+  const focusProp = focusVisual === 'banner' ? 'banner' : 'rig';
   return (
     <IsoRoom venueId="home" dim>
       {layout.all.map((spec) => {
         const source = roomPropArt('home', spec.id);
         if (!source) return null;
-        const on = spec.id === focusId;
+        if (spec.id === 'banner' && !upgrades.banner && focusVisual !== 'banner') return null;
+        const on = spec.id === focusProp;
         return (
           <View
             key={spec.id}
@@ -48,6 +49,14 @@ function RoomPreview({ focusId }: { focusId: PropId }) {
               style={{ width: '100%', height: '100%', opacity: on ? 1 : 0.42 }}
               contentFit="fill"
             />
+            {spec.id === 'rig' ? (
+              <RigUpgrades
+                monitor={upgrades.monitor || focusVisual === 'monitor'}
+                chair={upgrades.chair || focusVisual === 'chair'}
+                glow={upgrades.glow || focusVisual === 'glow'}
+                desk={upgrades.desk || focusVisual === 'desk'}
+              />
+            ) : null}
             {on ? (
               <Image
                 source={source}
@@ -73,11 +82,11 @@ export function ShopScreen() {
 
   const focus = preview ?? SHOP_CATALOG.find((i) => !ownsItem(career, i.id)) ?? SHOP_CATALOG[0]!;
   const upgrades = {
-    monitor: focus.visual === 'monitor' || career.ownedItems.some((id) => id.includes('monitor')),
-    chair: focus.visual === 'chair' || career.ownedItems.some((id) => id.includes('chair')),
-    glow: focus.visual === 'glow' || career.ownedItems.some((id) => id.includes('rgb')),
-    banner: focus.visual === 'banner' || career.ownedItems.some((id) => id.includes('banner')),
-    desk: focus.visual === 'desk' || career.ownedItems.some((id) => id.includes('keyboard')),
+    monitor: hasVisual(career, 'monitor'),
+    chair: hasVisual(career, 'chair'),
+    glow: hasVisual(career, 'glow'),
+    banner: hasVisual(career, 'banner'),
+    desk: hasVisual(career, 'desk'),
   };
 
   return (
@@ -90,13 +99,14 @@ export function ShopScreen() {
             <Tag label={`$${career.cash}`} tone="gold" solid />
           </View>
           <Text style={styles.blurb}>
-            Lo que comprás se ve en tu pieza. Tocá un ítem para previsualizar el prop isométrico.
+            Lo que comprás se ve en el setup: monitores, silla, RGB, teclado y banner. Tocá un ítem
+            para previsualizarlo en tu pieza.
           </Text>
 
           <View style={styles.preview}>
             <Text style={styles.previewLabel}>PREVIEW · PIEZA · {focus.label}</Text>
             <View style={styles.previewStage}>
-              <RoomPreview focusId={VISUAL_PROP[focus.visual]} />
+              <RoomPreview upgrades={upgrades} focusVisual={focus.visual} />
             </View>
           </View>
 

@@ -51,6 +51,7 @@ function legacyToArchetype(event: GameEvent): SituationArchetype {
     nationTags: event.nationTags,
     excludeNationTags: event.excludeNationTags,
     activityTags: event.activityTags,
+    roleTags: event.roleTags,
     requireRelations: event.requireRelations,
     actors: actorGuess,
     causes: ['contexto del circuito'],
@@ -219,6 +220,7 @@ function salience(
   let w = arch.weight ?? 1;
 
   if (arch.nationTags?.some((t) => tags.has(t))) w *= 2.2;
+  if (arch.roleTags?.includes(state.profile.roleId)) w *= 2.6;
   if (arch.activityTags?.length && state.lastActivity) {
     if (arch.activityTags.includes(state.lastActivity)) w *= 2.4;
     else w *= 0.55;
@@ -270,6 +272,7 @@ export function pickSituation(
   const pool = allArchetypes(pack).filter((a) => {
     if (!a.stages.includes(state.stageId)) return false;
     if (a.excludeNationTags?.some((t) => tags.has(t))) return false;
+    if (a.roleTags?.length && !a.roleTags.includes(state.profile.roleId)) return false;
     if (!relationsMatch(state, a.requireRelations)) return false;
     if (a.venues?.length && !a.venues.includes(state.venueId)) return false;
     return true;

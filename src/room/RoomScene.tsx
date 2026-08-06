@@ -18,9 +18,10 @@ import type { CareerState, ContentPack } from '../engine/types';
 import { venueAllows } from '../engine/venues';
 import { isMatchWeek, WEEK_ACTIVITIES, type WeekActivity } from '../engine/week';
 import { colors, fonts, SKEW, tones, UNSKEW, type Tone } from '../ui/theme';
-import { floorToScreen, standingSpot, venueLayout, type PropId, type PropSpec } from './layout';
+import { floorToScreen, standingSpot, venueLayout, type PropSpec } from './layout';
 import { IsoRoom } from './IsoRoom';
 import { roomPropArt } from './roomArt';
+import { RigUpgrades } from './RigUpgrades';
 import { hasVisual } from '../engine/economy';
 import { npcSpawns, type NpcSpawn } from '../engine/venues';
 import { WorldActor } from './WorldActor';
@@ -219,6 +220,7 @@ export function RoomScene({
 
   const hotThreads = career.activeThreads.filter((t) => t.intensity >= 40).slice(0, 2);
   const showBanner = upgrades.banner || order >= 4;
+  const ownedSetup = career.ownedItems.length;
 
   const focusSpec = selected?.spec ?? hintSpec;
   const playerSpot = walkTarget ?? (focusSpec ? standingSpot(focusSpec) : { fx: 1.2, fy: -2.6 });
@@ -252,6 +254,14 @@ export function RoomScene({
         return (
           <View key={spec.id} style={[styles.prop, boxOf(spec)]} pointerEvents="box-none">
             <RoomProp venueId={venueId} spec={spec} state={state} tone={tone} />
+            {spec.id === 'rig' ? (
+              <RigUpgrades
+                monitor={upgrades.monitor}
+                chair={upgrades.chair}
+                glow={upgrades.glow}
+                desk={upgrades.desk}
+              />
+            ) : null}
 
             {interactive || isSituationFocus ? (
               <Pressable
@@ -331,6 +341,7 @@ export function RoomScene({
         <Text style={styles.venueTagText}>{layout.name.toUpperCase()}</Text>
         <Text style={styles.ambience} numberOfLines={1}>
           {career.worldClock.ambience}
+          {ownedSetup > 0 ? ` · setup ${ownedSetup}/5` : ''}
           {hotThreads.length ? ` · ${hotThreads.length} hilo${hotThreads.length > 1 ? 's' : ''}` : ''}
         </Text>
       </View>
