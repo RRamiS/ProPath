@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   interpolate,
@@ -44,7 +44,7 @@ import {
 import { useGameStore } from '../store/gameStore';
 import { SituationScene } from './SituationScene';
 import { currentPlayableEvent } from '../engine/applyChoice';
-
+import { isMuted, setMuted, subscribeMute } from '../ui/audio';
 function Atmosphere({ landing = false, stageId }: { landing?: boolean; stageId?: string }) {
   return (
     <MobaBackdrop
@@ -106,9 +106,12 @@ export function HomeScreen() {
   const pack = useGameStore((s) => s.pack);
   const saveSummary = useGameStore((s) => s.saveSummary);
   const continueCareer = useGameStore((s) => s.continueCareer);
+  const [muted, setMutedUi] = useState(isMuted);
   const stageName = saveSummary
     ? (pack.stages.find((s) => s.id === saveSummary.stageId)?.name ?? saveSummary.stageId)
     : null;
+
+  useEffect(() => subscribeMute(setMutedUi), []);
 
   return (
     <View style={styles.root}>
@@ -207,6 +210,13 @@ export function HomeScreen() {
               El rol que elijas define tu carrera — y cambiarlo tiene precio. El progreso se
               guarda solo.
             </Text>
+            <Pressable
+              onPress={() => void setMuted(!muted)}
+              style={styles.muteBtn}
+              hitSlop={8}
+            >
+              <Text style={styles.muteText}>{muted ? 'Sonido: off' : 'Sonido: on'}</Text>
+            </Pressable>
           </FadeSlide>
         </ScrollView>
       </SafeAreaView>
@@ -636,6 +646,20 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     textAlign: 'center',
     marginTop: 12,
+  },
+  muteBtn: {
+    alignSelf: 'center',
+    marginTop: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  muteText: {
+    color: colors.muted,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    letterSpacing: 0.6,
   },
   overwriteWarn: {
     color: colors.danger,

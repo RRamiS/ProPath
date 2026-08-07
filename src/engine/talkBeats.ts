@@ -1,6 +1,6 @@
 /**
  * Diálogos de hub: un beat = apertura + 3 opciones con pros/contras.
- * Algunas opciones piden verbos (timing / hold / sort / tap) antes de resolver.
+ * Algunas opciones piden verbos (timing / react / sort / tap) antes de resolver.
  */
 import { applyStatDelta, nextRng } from './createCareer';
 import type { InteractVerb } from './interact';
@@ -121,8 +121,8 @@ const BEATS: TalkBeat[] = [
       {
         id: 'duo_cafe_lab',
         label: 'Labear drafts acá',
-        hint: '+visión · hold el foco',
-        verb: 'hold',
+        hint: '+visión · reacción',
+        verb: 'react',
         effect: { stats: { gameSense: 4 }, relations: { duo: 3 } },
         outcome: 'Dos comps en la servilleta. El barista ya ni pregunta.',
         failOutcome: 'Se distraen con el stream del TV. Poco avance.',
@@ -157,8 +157,8 @@ const BEATS: TalkBeat[] = [
       {
         id: 'coach_honest',
         label: 'La verdad cruda',
-        hint: '+visión · −mente · hold',
-        verb: 'hold',
+        hint: '+visión · −mente · reacción',
+        verb: 'react',
         effect: { stats: { gameSense: 4, mentality: -2 }, relations: { coach: 5 } },
         outcome: 'Te parte el VOD en seco. Duele. Después se entiende.',
         failOutcome: 'Cortás mirando el piso. Marek anota “no listo”.',
@@ -192,8 +192,8 @@ const BEATS: TalkBeat[] = [
       {
         id: 'coach_watch',
         label: 'Dale, ponelo',
-        hint: '+visión grande · hold',
-        verb: 'hold',
+        hint: '+visión grande · reacción',
+        verb: 'react',
         effect: { stats: { gameSense: 5, mentality: -1 }, relations: { coach: 4 } },
         outcome: 'Ves el error que él nunca olvidó. Ahora tampoco vos.',
         failOutcome: 'Te dormís a los 4 minutos. Marek apaga sin hablar.',
@@ -330,8 +330,8 @@ const BEATS: TalkBeat[] = [
       {
         id: 'rival_sit',
         label: 'Sentarte enfrente',
-        hint: '+rival · hold la mirada',
-        verb: 'hold',
+        hint: '+rival · reacción',
+        verb: 'react',
         effect: { stats: { mentality: 2, reputation: 1 }, relations: { rival: 4 } },
         outcome: 'Hablan poco. Pesan mucho. Sale respeto.',
         failOutcome: 'Apartás la vista. El rival anota mental.',

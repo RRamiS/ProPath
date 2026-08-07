@@ -52,9 +52,11 @@ export function roomSlots(career: CareerState, pack: ContentPack): RoomSlot[] {
   const layout = venueLayout(career.venueId);
   return layout.actions
     .map((spec) => {
-      const candidates = WEEK_ACTIVITIES.filter((a) => a.prop === spec.id);
-      const activity =
-        candidates.find((a) => venueAllows(career.venueId, a.id)) ?? candidates[0];
+      // Solo actividades de ESTA sede — nada de “Otra sede”.
+      const candidates = WEEK_ACTIVITIES.filter(
+        (a) => a.prop === spec.id && venueAllows(career.venueId, a.id)
+      );
+      const activity = candidates[0];
       if (!activity) return null;
 
       const stageOk = (activity.minStageOrder ?? 0) <= order;
@@ -62,11 +64,9 @@ export function roomSlots(career: CareerState, pack: ContentPack): RoomSlot[] {
         activity.slots.includes(career.daypart) ||
         (activity.id === 'content' && career.venueId === 'cafe');
       const fixtureOk = activity.id !== 'match' || isMatchWeek(career, pack);
-      const venueOk = venueAllows(career.venueId, activity.id);
 
       let lockLabel: string | null = null;
       if (!stageOk) lockLabel = 'Bloqueado';
-      else if (!venueOk) lockLabel = 'Otra sede';
       else if (!fixtureOk) lockLabel = 'Sin serie';
       else if (!slotOk) lockLabel = activity.slots.includes('night') ? 'De noche' : 'De día';
 
@@ -74,7 +74,7 @@ export function roomSlots(career: CareerState, pack: ContentPack): RoomSlot[] {
         spec,
         activity,
         tone: ACTIVITY_TONE[activity.id] ?? 'accent',
-        available: stageOk && slotOk && fixtureOk && venueOk,
+        available: stageOk && slotOk && fixtureOk,
         lockLabel,
       };
     })

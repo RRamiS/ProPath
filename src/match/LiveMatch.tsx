@@ -66,8 +66,8 @@ function phaseSkill(phase: string): { verb: InteractVerb; blurb: string; sortIte
       };
     default:
       return {
-        verb: 'hold',
-        blurb: 'Cierre bajo presión. Mantené el call hasta el final.',
+        verb: 'react',
+        blurb: 'Cierre bajo presión. Esperá la señal y tocá en el momento.',
       };
   }
 }

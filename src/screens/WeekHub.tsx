@@ -372,7 +372,10 @@ export function WeekHubScreen() {
       <SafeAreaView style={styles.safe}>
         <ScrollView
           style={styles.scrollFlex}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[
+            styles.scroll,
+            (pendingAct || pendingTalk) && styles.scrollWithDock,
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <FadeSlide key={`hub-${career.turn}-${career.daypart}-${career.venueId}`}>
@@ -447,22 +450,7 @@ export function WeekHubScreen() {
               </Panel>
             ) : null}
 
-            {pendingTalk ? (
-              <Panel tone="warn" glow label="Skill check" style={styles.block}>
-                <Text style={styles.talkLine}>{pendingTalk.label}</Text>
-                <VerbChallenge
-                  verb={pendingTalk.verb!}
-                  label={pendingTalk.hint}
-                  sortItems={pendingTalk.sortItems}
-                  onDone={(ok) => {
-                    const id = pendingTalk.id;
-                    setPendingTalk(null);
-                    bumpOnboard(3);
-                    chooseTalk(id, ok);
-                  }}
-                />
-              </Panel>
-            ) : talkSession ? (
+            {talkSession && !pendingTalk ? (
               <Panel
                 tone="blue"
                 glow
@@ -486,23 +474,6 @@ export function WeekHubScreen() {
                 <Pressable onPress={clearTalk} style={styles.talkDismiss}>
                   <Text style={styles.talkDismissText}>Dejar para después</Text>
                 </Pressable>
-              </Panel>
-            ) : null}
-
-            {pendingAct ? (
-              <Panel tone="warn" glow label="Ejecutar" style={styles.block}>
-                <Text style={styles.talkLine}>{pendingAct.choice.label}</Text>
-                <VerbChallenge
-                  verb={pendingAct.choice.verb!}
-                  label={pendingAct.choice.hint}
-                  sortItems={pendingAct.choice.sortItems}
-                  onDone={(ok) => {
-                    const { slot, choice } = pendingAct;
-                    setPendingAct(null);
-                    bumpOnboard(3);
-                    commit(slot, choice.id, ok);
-                  }}
-                />
               </Panel>
             ) : null}
 
@@ -591,10 +562,10 @@ export function WeekHubScreen() {
                 ) : (
                   <View style={styles.hintBar}>
                     <Text style={styles.hintText}>
-                      Tocá un objeto o una persona. El avatar camina hacia ahí.
+                      {venue.label}: solo objetos de esta sede. Tocá uno o a una persona.
                     </Text>
                     <Text style={styles.hintCount}>
-                      {slots.filter((s) => s.available).length} acciones
+                      {slots.filter((s) => s.available).length} acá
                     </Text>
                   </View>
                 )}
@@ -648,6 +619,49 @@ export function WeekHubScreen() {
             </Text>
           </FadeSlide>
         </ScrollView>
+
+        {pendingAct || pendingTalk ? (
+          <View style={styles.skillDock} pointerEvents="box-none">
+            <Panel
+              tone="warn"
+              glow
+              label={pendingTalk ? 'Skill check' : 'Ejecutar'}
+              style={styles.skillDockPanel}
+            >
+              {pendingTalk ? (
+                <>
+                  <Text style={styles.talkLine}>{pendingTalk.label}</Text>
+                  <VerbChallenge
+                    verb={pendingTalk.verb!}
+                    label={pendingTalk.hint}
+                    sortItems={pendingTalk.sortItems}
+                    onDone={(ok) => {
+                      const id = pendingTalk.id;
+                      setPendingTalk(null);
+                      bumpOnboard(3);
+                      chooseTalk(id, ok);
+                    }}
+                  />
+                </>
+              ) : pendingAct ? (
+                <>
+                  <Text style={styles.talkLine}>{pendingAct.choice.label}</Text>
+                  <VerbChallenge
+                    verb={pendingAct.choice.verb!}
+                    label={pendingAct.choice.hint}
+                    sortItems={pendingAct.choice.sortItems}
+                    onDone={(ok) => {
+                      const { slot, choice } = pendingAct;
+                      setPendingAct(null);
+                      bumpOnboard(3);
+                      commit(slot, choice.id, ok);
+                    }}
+                  />
+                </>
+              ) : null}
+            </Panel>
+          </View>
+        ) : null}
       </SafeAreaView>
     </View>
   );
@@ -657,6 +671,23 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1 },
   scrollFlex: { flex: 1 },
+  skillDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.md,
+    paddingTop: space.sm,
+    backgroundColor: 'rgba(8, 9, 12, 0.92)',
+    borderTopWidth: 1,
+    borderTopColor: tones.warn.border,
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  skillDockPanel: { marginBottom: 0 },
+  scrollWithDock: { paddingBottom: 220 },
   scroll: {
     paddingHorizontal: space.lg,
     paddingTop: space.md,

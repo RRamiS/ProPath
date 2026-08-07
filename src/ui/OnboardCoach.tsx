@@ -21,7 +21,7 @@ export const ONBOARD_STEPS = [
     step: 2,
     label: '3/4',
     title: 'Ejecutá el skill',
-    body: 'Si dice timing, hold, tap u ordenar: no es solo un click. Acertar o fallar cambia el resultado.',
+    body: 'Si dice timing, reacción, tap u ordenar: no es solo un click. Acertar o fallar cambia el resultado.',
   },
   {
     step: 3,

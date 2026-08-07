@@ -1,63 +1,90 @@
 /**
  * Minijuego: tocá cuando el marcador está en la zona verde.
- * Distinto al hold de TimingLane — sirve para pelea / clutch.
+ * Aguja con Reanimated (60fps); no usa setInterval/setState por frame.
  */
-import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import { colors, fonts, tones } from './theme';
 
 export function TapWindow({
   label,
   onDone,
-  durationMs = 2200,
+  /** Ida+vuelta completa (ms). Más alto = más legible. */
+  durationMs = 2800,
+  /** Semi-ancho de la zona buena (0.16 ≈ 32% del track). */
+  zoneHalf = 0.16,
 }: {
   label: string;
   onDone: (success: boolean) => void;
   durationMs?: number;
+  zoneHalf?: number;
 }) {
-  const [pos, setPos] = useState(0);
   const done = useRef(false);
-  // Zona buena centrada ~55–78%.
-  const zoneStart = 0.55;
-  const zoneEnd = 0.78;
+  const progress = useSharedValue(0);
+  const trackW = useSharedValue(0);
+  const zoneStart = Math.max(0.08, 0.5 - zoneHalf);
+  const zoneEnd = Math.min(0.92, 0.5 + zoneHalf);
 
   useEffect(() => {
-    const start = Date.now();
-    const id = setInterval(() => {
-      const t = (Date.now() - start) / durationMs;
-      if (t >= 1) {
-        clearInterval(id);
-        if (!done.current) {
-          done.current = true;
-          onDone(false);
-        }
-        return;
-      }
-      // Ida y vuelta.
-      const cycle = t * 2;
-      setPos(cycle <= 1 ? cycle : 2 - cycle);
-    }, 32);
-    return () => clearInterval(id);
-  }, [durationMs, onDone]);
+    const half = Math.max(900, durationMs / 2);
+    progress.value = 0;
+    progress.value = withRepeat(
+      withTiming(1, { duration: half, easing: Easing.linear }),
+      -1,
+      true
+    );
+    // Varias pasadas; si no tocan, falla.
+    const miss = setTimeout(() => {
+      if (done.current) return;
+      done.current = true;
+      cancelAnimation(progress);
+      onDone(false);
+    }, half * 5);
+    return () => {
+      cancelAnimation(progress);
+      clearTimeout(miss);
+    };
+  }, [durationMs, onDone, progress]);
+
+  const onTrackLayout = (e: LayoutChangeEvent) => {
+    trackW.value = e.nativeEvent.layout.width;
+  };
+
+  const needleStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * Math.max(0, trackW.value - 4) }],
+  }));
 
   const tap = () => {
     if (done.current) return;
     done.current = true;
-    onDone(pos >= zoneStart && pos <= zoneEnd);
+    const p = progress.value;
+    cancelAnimation(progress);
+    onDone(p >= zoneStart && p <= zoneEnd);
   };
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.hint}>Tocá en la zona verde</Text>
-      <View style={styles.track}>
+      <Text style={styles.hint}>Tocá AHORA cuando la barra esté en verde</Text>
+      <View style={styles.track} onLayout={onTrackLayout}>
         <View
           style={[
             styles.zone,
-            { left: `${zoneStart * 100}%`, width: `${(zoneEnd - zoneStart) * 100}%` },
+            {
+              left: `${zoneStart * 100}%`,
+              width: `${(zoneEnd - zoneStart) * 100}%`,
+            },
           ]}
         />
-        <View style={[styles.needle, { left: `${pos * 100}%` }]} />
+        <Animated.View style={[styles.needle, needleStyle]} />
       </View>
       <Pressable onPress={tap} style={styles.btn}>
         <Text style={styles.btnText}>AHORA</Text>
@@ -77,7 +104,7 @@ const styles = StyleSheet.create({
   label: { color: colors.text, fontFamily: fonts.bodyBold, fontSize: 13 },
   hint: { color: colors.muted, fontFamily: fonts.body, fontSize: 12 },
   track: {
-    height: 14,
+    height: 18,
     backgroundColor: colors.bgSunken,
     overflow: 'hidden',
     position: 'relative',
@@ -86,20 +113,20 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    backgroundColor: 'rgba(80,220,160,0.35)',
+    backgroundColor: 'rgba(80,220,160,0.4)',
   },
   needle: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 3,
-    marginLeft: -1.5,
+    left: 0,
+    width: 4,
     backgroundColor: colors.danger,
   },
   btn: {
     alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
     backgroundColor: tones.danger.fg,
   },
   btnText: {

@@ -11,7 +11,7 @@ import { currentPlayableEvent } from '../engine/applyChoice';
 import { ChoiceBoard } from '../ui/ChoiceBoard';
 import { DialogueSheet } from '../ui/DialogueSheet';
 import { EffectChips } from '../ui/effects';
-import { TimingLane } from '../ui/TimingLane';
+import { VerbChallenge } from '../ui/VerbChallenge';
 import { SortBoard } from '../ui/SortBoard';
 import { colors, fonts, space, tones } from '../ui/theme';
 
@@ -91,7 +91,8 @@ export function SituationScene({
 
   if (activeVerb?.verb === 'timing') {
     return (
-      <TimingLane
+      <VerbChallenge
+        verb="timing"
         label={activeVerb.choice.hint ?? activeVerb.choice.label}
         onDone={(ok) => {
           if (ok) resolve(activeVerb.choice.id);
