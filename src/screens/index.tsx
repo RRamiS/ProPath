@@ -17,12 +17,9 @@ import {
   PopIn,
   PressCard,
   SectionHeader,
-  Shutter,
-  StatBar,
   Tag,
   Title,
 } from '../ui/components';
-import { EffectChips } from '../ui/effects';
 import { Icon, type IconName } from '../ui/icons';
 import { FadeSlide } from '../ui/motion';
 import { HowToSheet } from '../ui/HowToSheet';
@@ -313,6 +310,7 @@ export function CreateScreen() {
   const nation = pack.nations.find((n) => n.id === draft.nationId);
   const role = pack.roles.find((r) => r.id === draft.roleId);
   const overwrites = !!saveSummary && !saveSummary.ending;
+  const canStart = !!draft.nationId && !!draft.roleId;
 
   return (
     <View style={styles.root}>
@@ -320,7 +318,7 @@ export function CreateScreen() {
       <SafeAreaView style={styles.safe}>
         <ScrollView
           style={styles.scrollFlex}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={styles.createScroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -351,10 +349,10 @@ export function CreateScreen() {
             right={<Tag label="Región y visas" tone="muted" />}
           />
           <View style={styles.gridTwo}>
-            {pack.nations.map((n, i) => {
+            {pack.nations.map((n) => {
               const on = draft.nationId === n.id;
               return (
-                <FadeSlide key={n.id} delay={i * 25} style={styles.gridItem}>
+                <View key={n.id} style={styles.gridItem}>
                   <PressCard
                     tone={on ? 'violet' : undefined}
                     selected={on}
@@ -369,16 +367,16 @@ export function CreateScreen() {
                       {n.name}
                     </Text>
                   </PressCard>
-                </FadeSlide>
+                </View>
               );
             })}
           </View>
           {nation ? (
-            <Shutter>
-              <Panel tone="violet" glow label={nation.name} style={styles.selectionNote}>
-                <Text style={styles.selectionNoteText}>{nation.blurb}</Text>
-              </Panel>
-            </Shutter>
+            <Panel tone="violet" glow label={nation.name} style={styles.selectionNote}>
+              <Text style={styles.selectionNoteText} numberOfLines={4}>
+                {nation.blurb}
+              </Text>
+            </Panel>
           ) : null}
 
           <SectionHeader
@@ -391,26 +389,29 @@ export function CreateScreen() {
             No es un skin: es tu identidad mecánica. Podés cambiar entre splits, pero
             cuesta plata, forma y confianza del staff.
           </Body>
-          {pack.roles.map((r, i) => {
+          {pack.roles.map((r) => {
             const on = draft.roleId === r.id;
             return (
-              <FadeSlide key={r.id} delay={i * 25}>
-                <PressCard
-                  tone={on ? 'gold' : undefined}
-                  selected={on}
-                  onPress={() => setDraft({ roleId: r.id })}
-                  style={styles.roleCard}
-                >
-                  <View style={styles.roleHead}>
-                    <Text style={[styles.roleName, on && { color: colors.gold }]}>{r.name}</Text>
-                    <Text style={styles.rolePrimary}>
-                      {r.primaryStats.map((s) => pack.statLabels[s] ?? s).join(' · ')}
-                    </Text>
-                  </View>
-                  <Text style={styles.roleDesc}>{r.description}</Text>
-                  <Text style={styles.roleStakes}>{r.stakes}</Text>
-                </PressCard>
-              </FadeSlide>
+              <PressCard
+                key={r.id}
+                tone={on ? 'gold' : undefined}
+                selected={on}
+                onPress={() => setDraft({ roleId: r.id })}
+                style={styles.roleCard}
+              >
+                <View style={styles.roleHead}>
+                  <Text style={[styles.roleName, on && { color: colors.gold }]}>{r.name}</Text>
+                  <Text style={styles.rolePrimary} numberOfLines={1}>
+                    {r.primaryStats.map((s) => pack.statLabels[s] ?? s).join(' · ')}
+                  </Text>
+                </View>
+                <Text style={styles.roleDesc} numberOfLines={3}>
+                  {r.description}
+                </Text>
+                <Text style={styles.roleStakes} numberOfLines={2}>
+                  {r.stakes}
+                </Text>
+              </PressCard>
             );
           })}
 
@@ -433,7 +434,9 @@ export function CreateScreen() {
               {(saveSummary?.weekInSeason ?? 0) + 1}).
             </Text>
           ) : null}
+        </ScrollView>
 
+        <View style={styles.createFooter}>
           <View style={styles.row}>
             <View style={styles.rowBtn}>
               <Button label="Volver" variant="ghost" onPress={() => setScreen('home')} />
@@ -442,10 +445,11 @@ export function CreateScreen() {
               <Button
                 label={overwrites ? 'Reemplazar y jugar' : 'Jugar'}
                 onPress={startCareer}
+                disabled={!canStart}
               />
             </View>
           </View>
-        </ScrollView>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -786,15 +790,37 @@ const styles = StyleSheet.create({
   /* create */
   createTitle: { marginTop: 12 },
   intro: { marginTop: 8, marginBottom: 8 },
+  createScroll: {
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.md,
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+    gap: 10,
+  },
+  createFooter: {
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    paddingHorizontal: space.lg,
+    paddingTop: 12,
+    paddingBottom: 8,
+    width: '100%',
+    maxWidth: maxContentWidth,
+    alignSelf: 'center',
+    backgroundColor: colors.bg,
+  },
   gridTwo: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    // Evita que hijos con % height estiren la fila al infinito (bug Android).
+    alignItems: 'flex-start',
   },
   gridItem: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    minWidth: 104,
+    width: '47%',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   roleIntro: {
     color: colors.muted,
@@ -846,19 +872,19 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   nationCard: {
-    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 12,
+    minHeight: 52,
   },
   nationName: {
     color: colors.text,
     fontFamily: fonts.bodySemi,
     fontSize: 13,
-    flex: 1,
+    flexShrink: 1,
   },
-  selectionNote: { marginTop: 12, paddingVertical: 12 },
+  selectionNote: { paddingVertical: 12 },
   selectionNoteText: {
     color: colors.violet,
     fontSize: 13,

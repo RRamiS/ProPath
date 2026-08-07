@@ -207,10 +207,10 @@ function ActivityList({
     <View style={styles.grid}>
       {slots
         .filter((s) => s.available)
-        .map((slot, i) => {
+        .map((slot) => {
           const impact = activityImpact(slot.activity, career.daypart);
           return (
-            <FadeSlide key={slot.activity.id} delay={30 + i * 30} style={styles.gridItem}>
+            <View key={slot.activity.id} style={styles.gridItem}>
               <PressCard onPress={() => onPick(slot)} tone={slot.tone} style={styles.activityCard}>
                 <View style={styles.activityHead}>
                   <IconBadge name={slot.activity.id} tone={slot.tone} size={34} />
@@ -242,7 +242,7 @@ function ActivityList({
                   ) : null}
                 </View>
               </PressCard>
-            </FadeSlide>
+            </View>
           );
         })}
     </View>
@@ -910,9 +910,15 @@ const styles = StyleSheet.create({
   },
 
   /* lista */
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  gridItem: { flexGrow: 1, flexBasis: '46%', minWidth: 150 },
-  activityCard: { height: '100%', gap: 9 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
+    alignItems: 'flex-start',
+  },
+  gridItem: { width: '47%', flexGrow: 0, flexShrink: 0, minWidth: 140 },
+  activityCard: { gap: 9, minHeight: 112 },
   activityHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   activityLabel: {
     flex: 1,
