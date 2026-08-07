@@ -94,6 +94,11 @@ export function activeObjectives(state: CareerState, limit = 2): Objective[] {
   ).slice(0, limit);
 }
 
+/** El objetivo que el HUD siempre muestra. */
+export function primaryObjective(state: CareerState): Objective | null {
+  return activeObjectives(state, 1)[0] ?? null;
+}
+
 export function objectiveProgress(o: Objective, state: CareerState): number {
   return Math.max(0, Math.min(100, (o.current(state) / o.target) * 100));
 }

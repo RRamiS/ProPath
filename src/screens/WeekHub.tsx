@@ -18,7 +18,9 @@ import { ROOM_NAMES, venueLayout } from '../room/layout';
 import { RoomScene, roomSlots, type RoomSlot } from '../room/RoomScene';
 import { useGameStore } from '../store/gameStore';
 import { agePressure } from '../engine/season';
-import { activityChoicesFor } from '../engine/activityChoices';
+import { activityChoicesFor, type ActivityChoice } from '../engine/activityChoices';
+import { needsChallenge, verbLabel } from '../engine/interact';
+import type { TalkChoice } from '../engine/talkBeats';
 import { getVenue } from '../engine/venues';
 import {
   Chip,
@@ -33,6 +35,9 @@ import {
 } from '../ui/components';
 import { ChoiceBoard } from '../ui/ChoiceBoard';
 import { EffectChips } from '../ui/effects';
+import { VerbChallenge } from '../ui/VerbChallenge';
+import { OnboardCoach } from '../ui/OnboardCoach';
+import { buzzClaim, buzzSelect } from '../ui/feedback';
 import { CareerHud } from '../ui/CareerHud';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
@@ -248,7 +253,7 @@ export function WeekHubScreen() {
   const pack = useGameStore((s) => s.pack);
   const career = useGameStore((s) => s.career);
   const pickActivity = useGameStore((s) => s.pickActivity);
-  const reset = useGameStore((s) => s.reset);
+  const goHome = useGameStore((s) => s.goHome);
   const setScreen = useGameStore((s) => s.setScreen);
   const talkToNpc = useGameStore((s) => s.talkToNpc);
   const chooseTalk = useGameStore((s) => s.chooseTalk);
@@ -256,17 +261,31 @@ export function WeekHubScreen() {
   const talkSession = useGameStore((s) => s.talkSession);
   const retireCareer = useGameStore((s) => s.retireCareer);
   const dismissNotice = useGameStore((s) => s.dismissNotice);
+  const completeOnboard = useGameStore((s) => s.completeOnboard);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
+  const [pendingTalk, setPendingTalk] = useState<TalkChoice | null>(null);
+  const [pendingAct, setPendingAct] = useState<{
+    slot: RoomSlot;
+    choice: ActivityChoice;
+  } | null>(null);
+  const [onboardStep, setOnboardStep] = useState(0);
 
   const daypart = career?.daypart;
   const turn = career?.turn;
   const venueId = career?.venueId;
+  const lastNotice = career?.lastNotice;
   useEffect(() => {
     setSelectedId(null);
   }, [daypart, turn, venueId]);
+
+  useEffect(() => {
+    if (lastNotice?.startsWith('Objetivo cumplido')) {
+      buzzClaim();
+    }
+  }, [lastNotice, turn]);
 
   if (!career) return null;
 
@@ -293,11 +312,59 @@ export function WeekHubScreen() {
     });
   }
 
-  const commit = (slot: RoomSlot, variantId?: string) => {
+  const commit = (slot: RoomSlot, variantId?: string, variantOk = true) => {
     setSelectedId(null);
+    setPendingAct(null);
     clearTalk();
-    pickActivity(slot.activity.id, variantId);
+    if (!career.flags.onboardDone) {
+      setOnboardStep((s) => Math.max(s, 3));
+    }
+    pickActivity(slot.activity.id, variantId, variantOk);
   };
+
+  const bumpOnboard = (to: number) => {
+    if (career.flags.onboardDone) return;
+    setOnboardStep((s) => Math.max(s, to));
+  };
+
+  const finishOnboard = () => {
+    setOnboardStep(4);
+    completeOnboard();
+  };
+
+  const startActivityChoice = (slot: RoomSlot, variantId?: string) => {
+    if (!variantId) {
+      commit(slot);
+      return;
+    }
+    const choice = activityChoicesFor(slot.activity.id, career.venueId)?.find(
+      (c) => c.id === variantId
+    );
+    bumpOnboard(1);
+    if (choice && needsChallenge(choice.verb)) {
+      setSelectedId(null);
+      bumpOnboard(2);
+      setPendingAct({ slot, choice });
+      return;
+    }
+    commit(slot, variantId, true);
+  };
+
+  const onTalkPick = (id: string) => {
+    if (!talkSession) return;
+    const choice = talkSession.choices.find((c) => c.id === id);
+    if (!choice) return;
+    bumpOnboard(1);
+    if (needsChallenge(choice.verb)) {
+      bumpOnboard(2);
+      setPendingTalk(choice);
+      return;
+    }
+    chooseTalk(id, true);
+    bumpOnboard(3);
+  };
+
+  const showOnboard = !career.flags.onboardDone && career.turn < 2;
 
   return (
     <View style={styles.root}>
@@ -309,23 +376,56 @@ export function WeekHubScreen() {
           showsVerticalScrollIndicator={false}
         >
           <FadeSlide key={`hub-${career.turn}-${career.daypart}-${career.venueId}`}>
-            <CareerHud career={career} pack={pack} onExit={reset} />
+            <CareerHud career={career} pack={pack} onExit={() => void goHome()} />
 
-            {career.turn === 0 && career.daypart === 'day' ? (
+            {showOnboard && onboardStep < 4 ? (
+              <OnboardCoach
+                step={onboardStep}
+                onSkip={finishOnboard}
+                onOpenMap={() => {
+                  finishOnboard();
+                  setScreen('city');
+                }}
+              />
+            ) : null}
+
+            {career.turn === 0 && career.daypart === 'day' && career.flags.onboardDone ? (
               <Panel tone="gold" glow label="Primera semana" style={styles.block}>
                 <Text style={styles.noticeText}>
-                  Tocá un objeto de la sala para elegir qué hacer. Sos{' '}
+                  Sos{' '}
                   {(pack.roles.find((r) => r.id === career.profile.roleId)?.name ??
                     career.profile.roleId).toUpperCase()}
-                  : entrená tu actividad firma y la maestría sube — eso pesa en las series.
+                  : tu actividad firma sube maestría — eso pesa en las series.
                 </Text>
               </Panel>
             ) : null}
 
             {career.lastNotice ? (
               <Shutter>
-                <Panel tone="accent" glow label="Parte" style={styles.block}>
-                  <Text style={styles.noticeText}>{career.lastNotice}</Text>
+                <Panel
+                  tone={
+                    career.lastNotice.startsWith('Objetivo cumplido')
+                      ? 'gold'
+                      : 'accent'
+                  }
+                  glow
+                  label={
+                    career.lastNotice.startsWith('Objetivo cumplido')
+                      ? 'Objetivo'
+                      : 'Parte'
+                  }
+                  style={styles.block}
+                >
+                  <Text
+                    style={[
+                      styles.noticeText,
+                      career.lastNotice.startsWith('Objetivo cumplido') && {
+                        color: tones.gold.fg,
+                      },
+                    ]}
+                  >
+                    {career.lastNotice}
+                  </Text>
                   <Pressable onPress={dismissNotice} style={styles.continueBtn}>
                     <Text style={styles.continueBtnText}>CONTINUAR →</Text>
                   </Pressable>
@@ -347,7 +447,22 @@ export function WeekHubScreen() {
               </Panel>
             ) : null}
 
-            {talkSession ? (
+            {pendingTalk ? (
+              <Panel tone="warn" glow label="Skill check" style={styles.block}>
+                <Text style={styles.talkLine}>{pendingTalk.label}</Text>
+                <VerbChallenge
+                  verb={pendingTalk.verb!}
+                  label={pendingTalk.hint}
+                  sortItems={pendingTalk.sortItems}
+                  onDone={(ok) => {
+                    const id = pendingTalk.id;
+                    setPendingTalk(null);
+                    bumpOnboard(3);
+                    chooseTalk(id, ok);
+                  }}
+                />
+              </Panel>
+            ) : talkSession ? (
               <Panel
                 tone="blue"
                 glow
@@ -360,9 +475,10 @@ export function WeekHubScreen() {
                     id: c.id,
                     label: c.label,
                     hint: c.hint,
+                    verb: verbLabel(c.verb),
                     effect: c.effect,
                   }))}
-                  onChoose={chooseTalk}
+                  onChoose={onTalkPick}
                   renderEffects={(effect) => (
                     <EffectChips effect={effect} statLabels={pack.statLabels} />
                   )}
@@ -370,6 +486,23 @@ export function WeekHubScreen() {
                 <Pressable onPress={clearTalk} style={styles.talkDismiss}>
                   <Text style={styles.talkDismissText}>Dejar para después</Text>
                 </Pressable>
+              </Panel>
+            ) : null}
+
+            {pendingAct ? (
+              <Panel tone="warn" glow label="Ejecutar" style={styles.block}>
+                <Text style={styles.talkLine}>{pendingAct.choice.label}</Text>
+                <VerbChallenge
+                  verb={pendingAct.choice.verb!}
+                  label={pendingAct.choice.hint}
+                  sortItems={pendingAct.choice.sortItems}
+                  onDone={(ok) => {
+                    const { slot, choice } = pendingAct;
+                    setPendingAct(null);
+                    bumpOnboard(3);
+                    commit(slot, choice.id, ok);
+                  }}
+                />
               </Panel>
             ) : null}
 
@@ -388,7 +521,13 @@ export function WeekHubScreen() {
                 </Text>
               </View>
               <View style={styles.headActions}>
-                <Pressable style={styles.viewToggle} onPress={() => setScreen('city')}>
+                <Pressable
+                  style={styles.viewToggle}
+                  onPress={() => {
+                    if (showOnboard) finishOnboard();
+                    setScreen('city');
+                  }}
+                >
                   <Text style={styles.viewToggleText}>MAPA</Text>
                 </Pressable>
                 <Pressable style={styles.viewToggle} onPress={() => setScreen('shop')}>
@@ -432,6 +571,8 @@ export function WeekHubScreen() {
                   selectedId={selectedId}
                   onSelect={(s) => {
                     clearTalk();
+                    buzzSelect();
+                    bumpOnboard(1);
                     setSelectedId(s.spec.id);
                   }}
                   onNpc={(npc) => {
@@ -444,7 +585,7 @@ export function WeekHubScreen() {
                     slot={selected}
                     career={career}
                     pack={pack}
-                    onConfirm={(variantId) => commit(selected, variantId)}
+                    onConfirm={(variantId) => startActivityChoice(selected, variantId)}
                     onCancel={() => setSelectedId(null)}
                   />
                 ) : (
@@ -528,7 +669,7 @@ const styles = StyleSheet.create({
   noticeText: {
     color: colors.accent,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: 20,
     fontFamily: fonts.bodySemi,
   },
   talkLine: {

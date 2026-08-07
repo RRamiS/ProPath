@@ -101,6 +101,9 @@ export function tickNpcWorld(state: CareerState, matchWeek: boolean): CareerStat
   const npcStates = { ...state.npcStates };
   const kinds: RelationKey[] = ['coach', 'duo', 'rival', 'manager'];
 
+  const rivalry = state.activeThreads.find((t) => t.kind === 'rivalry');
+  const rivalHeat = rivalry?.intensity ?? 0;
+
   for (const kind of kinds) {
     const prev = npcStates[kind];
     const venues = HOME_VENUES[kind];
@@ -118,12 +121,18 @@ export function tickNpcWorld(state: CareerState, matchWeek: boolean): CareerStat
       venueId = roll() < 0.5 ? 'home' : 'cafe';
     }
 
+    // Rivalidad caliente: el rival aparece en café/arena y empuja situación.
+    if (kind === 'rival' && rivalHeat >= 35) {
+      venueId = matchWeek || rivalHeat >= 70 ? (roll() < 0.55 ? 'arena' : 'cafe') : 'cafe';
+    }
+
     const trust = clamp(state.relations[kind]);
     const urgency = clamp(
       prev.urgency * 0.7 +
         (state.fatigue > 70 ? 15 : 0) +
         (state.lastMatch && !state.lastMatch.won && kind === 'coach' ? 20 : 0) +
-        (state.activeThreads.some((t) => t.actors.includes(kind)) ? 25 : 0)
+        (state.activeThreads.some((t) => t.actors.includes(kind)) ? 25 : 0) +
+        (kind === 'rival' ? rivalHeat * 0.35 : 0)
     );
 
     const agendaPool = AGENDAS[kind];
@@ -134,6 +143,9 @@ export function tickNpcWorld(state: CareerState, matchWeek: boolean): CareerStat
       pendingAction = ACTIONS[Math.floor(roll() * ACTIONS.length)]!;
       if (kind === 'rival' && pendingAction === 'invite') pendingAction = 'claim';
       if (kind === 'manager' && pendingAction === 'leak') pendingAction = 'offer';
+    }
+    if (kind === 'rival' && rivalHeat >= 40 && roll() < 0.55) {
+      pendingAction = rivalHeat >= 70 ? 'offer' : 'claim';
     }
 
     npcStates[kind] = {

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { objectiveProgress, primaryObjective } from '../engine/objectives';
 import { masteryTierLabel, roleMasteryOf } from '../engine/role';
 import type { CareerState, ContentPack } from '../engine/types';
 import { Gauge, SeasonStrip } from './components';
@@ -36,11 +37,22 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
   const masteryTier = masteryTierLabel(mastery);
   const tone = stageTone[career.stageId] ?? 'accent';
   const t = tones[tone];
+  const objective = !compact ? primaryObjective(career) : null;
+  const objPct = objective ? objectiveProgress(objective, career) : 0;
+  const rivalry = career.activeThreads.find((th) => th.kind === 'rivalry');
+  const claimFlash =
+    typeof career.flags.claimFlashUntil === 'number' &&
+    career.flags.claimFlashUntil >= career.turn;
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.deck, { borderColor: t.border }]}>
-        <View style={[styles.edge, { backgroundColor: t.fg }]} />
+      <View
+        style={[
+          styles.deck,
+          { borderColor: claimFlash ? tones.gold.border : t.border },
+        ]}
+      >
+        <View style={[styles.edge, { backgroundColor: claimFlash ? tones.gold.fg : t.fg }]} />
 
         <View style={[styles.stageTab, { backgroundColor: t.fg }]}>
           <Text style={styles.stageTabText} numberOfLines={1}>
@@ -101,6 +113,44 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
             </View>
             <Text style={styles.masteryNum}>{mastery}</Text>
           </View>
+        ) : null}
+
+        {objective ? (
+          <View style={styles.objRow}>
+            <View style={styles.objTop}>
+              <Text style={styles.objLabel} numberOfLines={1}>
+                META · {objective.label}
+              </Text>
+              <Text style={styles.objNum}>
+                {Math.min(objective.current(career), objective.target)}/{objective.target}
+              </Text>
+            </View>
+            <View style={styles.objTrack}>
+              <View
+                style={[
+                  styles.objFill,
+                  {
+                    width: `${Math.max(4, objPct)}%`,
+                    backgroundColor: objPct >= 100 ? tones.gold.fg : t.fg,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.objHint} numberOfLines={1}>
+              {objective.hint} · {objective.rewardLabel}
+            </Text>
+          </View>
+        ) : null}
+
+        {rivalry && rivalry.intensity >= 30 ? (
+          <Text style={styles.rivalChip} numberOfLines={1}>
+            RIVALIDAD {Math.round(rivalry.intensity)} ·{' '}
+            {rivalry.intensity >= 70
+              ? 'cara a cara'
+              : rivalry.intensity >= 40
+                ? 'customs en juego'
+                : 'te mide'}
+          </Text>
         ) : null}
 
         <SeasonStrip turn={career.weekInSeason} maxTurns={career.maxTurns} tone={tone} />
@@ -260,6 +310,42 @@ const styles = StyleSheet.create({
     fontSize: 10,
     minWidth: 22,
     textAlign: 'right',
+  },
+  objRow: { gap: 4 },
+  objTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  objLabel: {
+    flex: 1,
+    color: tones.gold.fg,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
+  },
+  objNum: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+  },
+  objTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  objFill: { height: '100%' },
+  objHint: {
+    color: colors.faint,
+    fontFamily: fonts.body,
+    fontSize: 10,
+  },
+  rivalChip: {
+    color: colors.danger,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.8,
   },
   record: {
     alignItems: 'flex-end',

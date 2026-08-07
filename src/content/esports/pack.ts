@@ -704,7 +704,7 @@ export const esportsPack: ContentPack = {
       name: 'Mid',
       description: 'Carry de mapa, pressure y outplays.',
       stakes:
-        'Vos decidís el tempo del mapa. Si fallás un roam, se nota en el scoreboard — y en el VOD del coach.',
+        'Vos marcás el ritmo del mapa. Si salís mal a ayudar, se nota en el marcador — y en la review del coach.',
       startingStats: { mechanics: 8, gameSense: 5 },
       primaryStats: ['mechanics', 'gameSense'],
       signatureCalls: ['prio', 'playmake', 'roam', 'focus'],
@@ -713,9 +713,9 @@ export const esportsPack: ContentPack = {
     {
       id: 'jungle',
       name: 'Jungle',
-      description: 'Tempo, pathing y calls tempranas.',
+      description: 'Ritmo, rutas y llamadas tempranas.',
       stakes:
-        'El draft y el pathing son tuyos. Un mal clear temprano te marca la serie entera; un buen gank te hace shotcaller.',
+        'La composición y tu ruta son tuyas. Un mal recorrido temprano te marca la serie; una buena emboscada te hace líder de calls.',
       startingStats: { gameSense: 10, teamwork: 5 },
       primaryStats: ['gameSense', 'teamwork'],
       signatureCalls: ['prio', 'roam', 'steal', 'baron'],
@@ -724,9 +724,9 @@ export const esportsPack: ContentPack = {
     {
       id: 'adc',
       name: 'ADC',
-      description: 'Scaling y positioning. Vivís con tu support.',
+      description: 'Crecés tarde y vivís del posicionamiento con tu support.',
       stakes:
-        'Tu valor explota tarde. Dependés del duo: si la lane se rompe, el late nunca llega.',
+        'Tu valor explota tarde. Dependés del duo: si la línea se rompe, el late nunca llega.',
       startingStats: { mechanics: 10, mentality: 3 },
       primaryStats: ['mechanics', 'mentality'],
       signatureCalls: ['safe', 'farm', 'peel', 'siege'],
@@ -735,9 +735,9 @@ export const esportsPack: ContentPack = {
     {
       id: 'support',
       name: 'Support',
-      description: 'Vision, engages y shotcalling.',
+      description: 'Visión, inicios de pelea y liderazgo en calls.',
       stakes:
-        'Pocas kills, mucho control. Si no armás la visión, el carry muere — y el blame cae igual sobre vos.',
+        'Pocas kills, mucho control. Si no armás la visión, el carry muere — y la culpa cae igual sobre vos.',
       startingStats: { teamwork: 12, gameSense: 5 },
       primaryStats: ['teamwork', 'gameSense'],
       signatureCalls: ['safe', 'peel', 'steal', 'stall'],
@@ -746,9 +746,9 @@ export const esportsPack: ContentPack = {
     {
       id: 'top',
       name: 'Top',
-      description: 'Matchups, TP plays y resiliencia mental.',
+      description: 'Enfrentamientos 1v1, teletransportes y cabeza fría.',
       stakes:
-        'Isla solitaria. Un mismatch te deja irrelevante; un TP clutch te convierte en el héroe del split.',
+        'Línea solitaria. Un mal matchup te deja irrelevante; un teletransporte clutch te convierte en el héroe del split.',
       startingStats: { mentality: 10, mechanics: 5 },
       primaryStats: ['mentality', 'mechanics'],
       signatureCalls: ['flex', 'farm', 'bail', 'close'],

@@ -126,7 +126,8 @@ export function buildMatchBeats(roleId: string): MatchBeat[] {
 
 /** Mapea la barra de impulso (0–100) a un factor de serie legible. */
 export function momentumWinChance(momentum: number): number {
-  return Math.round(18 + (Math.max(0, Math.min(100, momentum)) / 100) * 64);
+  // Alineado al peso real del impulso: la barra se siente más decisiva.
+  return Math.round(14 + (Math.max(0, Math.min(100, momentum)) / 100) * 72);
 }
 
 export function resolveMatch(
@@ -189,8 +190,8 @@ export function resolveMatch(
   });
   add('Tus llamadas', callsValue);
   add('Lectura de rol', roleCalls);
-  // La barra de impulso del broadcast cuenta: alto = más chance, presión rival = menos.
-  add('Impulso de la serie', (seriesMomentum - 50) / 55);
+  // Impulso de la barra en vivo: peso alto para que las fases decidan la serie.
+  add('Impulso de la serie', (seriesMomentum - 50) / 32);
 
   const stagePenalty =
     state.stageId === 'worlds'
@@ -205,7 +206,14 @@ export function resolveMatch(
   // Un poco más duros: si no laburás la semana, el “siempre gano” se corta.
   add('Nivel del rival', -(0.55 + stagePenalty + seasonPressure));
 
-  if (state.relations.rival >= 55) add('El rival te estudió', -0.3);
+  const rivalHeat =
+    state.activeThreads.find((t) => t.kind === 'rivalry')?.intensity ?? 0;
+  if (rivalHeat >= 30) {
+    // Heat 30→100 ≈ −0.18…−0.60; showdown (≥70) suma un poco más.
+    add('Rivalidad', -((rivalHeat / 100) * 0.6 + (rivalHeat >= 70 ? 0.15 : 0)));
+  } else if (state.relations.rival >= 55) {
+    add('El rival te estudió', -0.3);
+  }
   if (state.form < 40) add('Fuera de ritmo', -0.35);
   if (state.fatigue > 75) add('Cuerpo quemado', -0.4);
 

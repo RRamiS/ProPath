@@ -13,7 +13,8 @@ import { decayThreads } from './memory';
 import { tickNpcWorld } from './npcDirector';
 import { gainRoleMastery, roleTrainingBoost } from './role';
 import { venueAllows } from './venues';
-import { activityChoicesFor } from './activityChoices';
+import { activityChoicesFor, scaleActivityChoice } from './activityChoices';
+import { activityReportLine } from './activityReport';
 import type {
   CareerState,
   ContentPack,
@@ -247,6 +248,33 @@ function applyRelations(rel: Relations, delta?: Partial<Relations>): Relations {
   return out;
 }
 
+/** Cobra objetivos y deja rastro visible en HUD/sala. */
+export function applyObjectiveClaims(state: CareerState): CareerState {
+  const claim = claimObjectives(state);
+  if (claim.claimed.length === 0) return state;
+  const first = claim.claimed[0]!;
+  const rewardCash = Math.round((first.reward.money ?? 0) * 10);
+  let next: CareerState = {
+    ...claim.state,
+    cash: claim.state.cash + rewardCash,
+    lastNotice: `Objetivo cumplido: ${first.label} — ${first.rewardLabel}`,
+    ticker: [
+      `OBJETIVO · ${first.label}`,
+      first.rewardLabel,
+      ...claim.state.ticker,
+    ].slice(0, 8),
+    flags: {
+      ...claim.state.flags,
+      lastClaimedObjective: first.id,
+      claimFlashUntil: state.turn + 2,
+      claimBannerUntil: state.turn + 3,
+    },
+  };
+  // Un poco de maestría para que el claim se sienta en el HUD.
+  next = gainRoleMastery(next, 3);
+  return next;
+}
+
 function tickerFor(activity: WeekActivityId, state: CareerState): string[] {
   const name = state.profile.name;
   switch (activity) {
@@ -292,7 +320,9 @@ export function applyWeekActivity(
   state: CareerState,
   activityId: WeekActivityId,
   /** Variante elegida (3 opciones al tocar el objeto). */
-  variantId?: string
+  variantId?: string,
+  /** Si la variante pedía skill check, si lo pasó. */
+  variantOk = true
 ): WeekOutcome {
   if (state.endingId) return { kind: 'ending', state };
   if (state.phase === 'seasonBreak') return { kind: 'season', state };
@@ -333,9 +363,12 @@ export function applyWeekActivity(
     delete boosted.money;
   }
 
-  const variant = variantId
+  let variant = variantId
     ? activityChoicesFor(activityId, state.venueId)?.find((v) => v.id === variantId)
     : undefined;
+  if (variant && !variantOk) {
+    variant = scaleActivityChoice(variant, false);
+  }
   if (variant?.effect.stats) {
     for (const [k, v] of Object.entries(variant.effect.stats)) {
       if (typeof v === 'number') {
@@ -401,13 +434,18 @@ export function applyWeekActivity(
       daypart: 'night',
       lastActivity: activityId,
       rngSeed: seed,
-      lastNotice: noticeFor(),
+      lastNotice: '',
       ticker: tickerFor(activityId, state),
       phase: 'hub',
       currentEventId: null,
       currentSituation: null,
     };
     if (masteryGain) slotState = gainRoleMastery(slotState, masteryGain);
+    slotState = {
+      ...slotState,
+      lastNotice: activityReportLine(activityId, slotState, noticeFor()),
+    };
+    slotState = applyObjectiveClaims(slotState);
     return { kind: 'slot', state: slotState };
   }
 
@@ -438,7 +476,7 @@ export function applyWeekActivity(
     weekInSeason,
     daypart: 'day',
     rngSeed: seed,
-    lastNotice: noticeFor(),
+    lastNotice: activityReportLine(activityId, { ...state, form, fatigue, relations, stats }, noticeFor()),
     ticker: tickerFor(activityId, state),
     phase: 'hub',
     currentEventId: null,
@@ -450,16 +488,7 @@ export function applyWeekActivity(
   next = decayThreads(next);
   next = tickNpcWorld(next, isMatchWeek(next, pack));
 
-  const claim = claimObjectives(next);
-  if (claim.claimed.length > 0) {
-    const rewardCash = Math.round((claim.claimed[0]!.reward.money ?? 0) * 10);
-    next = {
-      ...claim.state,
-      cash: claim.state.cash + rewardCash,
-      lastNotice: `Objetivo cumplido: ${claim.claimed[0]!.label} — ${claim.claimed[0]!.rewardLabel}`,
-      ticker: [`OBJETIVO · ${claim.claimed[0]!.label}`, ...next.ticker],
-    };
-  }
+  next = applyObjectiveClaims(next);
 
   const stageOrder = pack.stages.find((s) => s.id === next.stageId)?.order ?? 1;
   let goMatch = activityId === 'match' || isMatchWeek(state, pack);

@@ -104,6 +104,11 @@ function FeatureRow({
 export function HomeScreen() {
   const setScreen = useGameStore((s) => s.setScreen);
   const pack = useGameStore((s) => s.pack);
+  const saveSummary = useGameStore((s) => s.saveSummary);
+  const continueCareer = useGameStore((s) => s.continueCareer);
+  const stageName = saveSummary
+    ? (pack.stages.find((s) => s.id === saveSummary.stageId)?.name ?? saveSummary.stageId)
+    : null;
 
   return (
     <View style={styles.root}>
@@ -172,9 +177,35 @@ export function HomeScreen() {
           </FadeSlide>
 
           <FadeSlide delay={280} style={styles.ctaBlock}>
-            <Button label="Empezar carrera" onPress={() => setScreen('create')} />
+            {saveSummary && !saveSummary.ending ? (
+              <>
+                <Button label="Continuar carrera" onPress={() => void continueCareer()} />
+                <Text style={styles.saveMeta}>
+                  {saveSummary.name} · {stageName} · Semana {saveSummary.weekInSeason + 1}/
+                  {saveSummary.maxTurns} · {saveSummary.wins}–{saveSummary.losses} · $
+                  {saveSummary.cash}
+                </Text>
+                <Button
+                  label="Nueva carrera"
+                  variant="ghost"
+                  onPress={() => setScreen('create')}
+                />
+              </>
+            ) : saveSummary?.ending ? (
+              <>
+                <Button label="Ver último final" onPress={() => void continueCareer()} />
+                <Button
+                  label="Nueva carrera"
+                  variant="ghost"
+                  onPress={() => setScreen('create')}
+                />
+              </>
+            ) : (
+              <Button label="Empezar carrera" onPress={() => setScreen('create')} />
+            )}
             <Text style={styles.micro}>
-              El rol que elijas define tu carrera — y cambiarlo tiene precio
+              El rol que elijas define tu carrera — y cambiarlo tiene precio. El progreso se
+              guarda solo.
             </Text>
           </FadeSlide>
         </ScrollView>
@@ -191,8 +222,10 @@ export function CreateScreen() {
   const setDraft = useGameStore((s) => s.setDraft);
   const startCareer = useGameStore((s) => s.startCareer);
   const setScreen = useGameStore((s) => s.setScreen);
+  const saveSummary = useGameStore((s) => s.saveSummary);
   const nation = pack.nations.find((n) => n.id === draft.nationId);
   const role = pack.roles.find((r) => r.id === draft.roleId);
+  const overwrites = !!saveSummary && !saveSummary.ending;
 
   return (
     <View style={styles.root}>
@@ -307,12 +340,22 @@ export function CreateScreen() {
             ) : null}
           </Panel>
 
+          {overwrites ? (
+            <Text style={styles.overwriteWarn}>
+              Empezar borra la partida de {saveSummary?.name} (semana{' '}
+              {(saveSummary?.weekInSeason ?? 0) + 1}).
+            </Text>
+          ) : null}
+
           <View style={styles.row}>
             <View style={styles.rowBtn}>
               <Button label="Volver" variant="ghost" onPress={() => setScreen('home')} />
             </View>
             <View style={styles.rowBtnPrimary}>
-              <Button label="Jugar" onPress={startCareer} />
+              <Button
+                label={overwrites ? 'Reemplazar y jugar' : 'Jugar'}
+                onPress={startCareer}
+              />
             </View>
           </View>
         </ScrollView>
@@ -329,7 +372,7 @@ export function PlayScreen() {
   const choose = useGameStore((s) => s.choose);
   const enterMinigame = useGameStore((s) => s.enterMinigame);
   const softFail = useGameStore((s) => s.softFail);
-  const reset = useGameStore((s) => s.reset);
+  const goHome = useGameStore((s) => s.goHome);
 
   if (!career || !career.currentEventId) {
     return (
@@ -367,7 +410,7 @@ export function PlayScreen() {
           showsVerticalScrollIndicator={false}
         >
           <FadeSlide key={`${career.currentEventId}-${career.turn}-${career.currentSituation?.instanceId}`}>
-            <CareerHud career={career} pack={pack} compact onExit={reset} />
+            <CareerHud career={career} pack={pack} compact onExit={() => void goHome()} />
 
             {last ? (
               <View style={styles.lastMatchRow}>
@@ -400,6 +443,7 @@ export function EndingScreen() {
   const pack = useGameStore((s) => s.pack);
   const career = useGameStore((s) => s.career);
   const reset = useGameStore((s) => s.reset);
+  const goHome = useGameStore((s) => s.goHome);
   const ending = pack.endings.find((e) => e.id === career?.endingId);
   const reveal = useSharedValue(0);
   const tone = TIER_TONE[ending?.tier ?? 'ok'] ?? 'accent';
@@ -449,6 +493,7 @@ export function EndingScreen() {
 
             <View style={styles.endingCta}>
               <Button label="Nueva carrera" onPress={reset} />
+              <Button label="Menú" variant="ghost" onPress={() => void goHome()} />
             </View>
           </Animated.View>
         </ScrollView>
@@ -576,12 +621,29 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   ctaBlock: { marginTop: space.xl },
+  saveMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    fontFamily: fonts.bodyMedium,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+    lineHeight: 17,
+  },
   micro: {
     color: colors.faint,
     fontSize: 12,
     fontFamily: fonts.bodyMedium,
     textAlign: 'center',
     marginTop: 12,
+  },
+  overwriteWarn: {
+    color: colors.danger,
+    fontSize: 12,
+    fontFamily: fonts.bodyMedium,
+    textAlign: 'center',
+    marginBottom: 10,
+    lineHeight: 17,
   },
 
   /* create */
@@ -786,5 +848,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 12,
   },
-  endingCta: { marginTop: space.md },
+  endingCta: { marginTop: space.md, gap: 10 },
 });

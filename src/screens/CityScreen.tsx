@@ -15,7 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { availableVenues, getVenue, VENUES } from '../engine/venues';
-import type { VenueId } from '../engine/types';
+import type { RelationKey, VenueId } from '../engine/types';
 import { roomBg } from '../room/roomArt';
 import { useGameStore } from '../store/gameStore';
 import { Button, LiveDot, Panel } from '../ui/components';
@@ -104,6 +104,13 @@ export function CityScreen() {
   const weather = career.worldClock.weather;
   const herePos = MAP_POS[career.venueId];
 
+  const npcsAt = (venueId: VenueId) => {
+    const kinds = Object.keys(career.npcStates) as RelationKey[];
+    return kinds
+      .filter((k) => career.npcStates[k].venueId === venueId)
+      .map((k) => career.roster[k].name.split(' ')[0] ?? k);
+  };
+
   const weatherWash =
     weather === 'rain'
       ? (['rgba(40,70,120,0.35)', 'rgba(10,16,28,0.15)'] as const)
@@ -154,6 +161,7 @@ export function CityScreen() {
               const unlocked = open.has(v.id);
               const on = v.id === career.venueId;
               const art = roomBg(v.id);
+              const who = unlocked ? npcsAt(v.id) : [];
 
               return (
                 <Pressable
@@ -195,6 +203,11 @@ export function CityScreen() {
                       {v.label}
                     </Text>
                   </View>
+                  {who.length > 0 ? (
+                    <Text style={styles.who} numberOfLines={1}>
+                      {who.join(' · ')}
+                    </Text>
+                  ) : null}
                   {!unlocked ? (
                     <Text style={styles.lock}>Bloqueado</Text>
                   ) : !on ? (
@@ -223,6 +236,13 @@ export function CityScreen() {
             <Text style={styles.detailActs}>
               Actividades: {here.activities.join(' · ')}
             </Text>
+            {npcsAt(career.venueId).length > 0 ? (
+              <Text style={styles.detailActs}>
+                Acá ahora: {npcsAt(career.venueId).join(', ')}
+              </Text>
+            ) : (
+              <Text style={styles.detailActs}>Nadie del círculo en esta sede ahora.</Text>
+            )}
           </Panel>
 
           <Panel tone="muted" label="Ruta">
@@ -339,6 +359,13 @@ const styles = StyleSheet.create({
   },
   nodeLabelOn: { color: tones.accent.fg },
   nodeLabelLocked: { color: colors.faint },
+  who: {
+    color: tones.blue.fg,
+    fontFamily: fonts.bodyBold,
+    fontSize: 8.5,
+    maxWidth: 100,
+    textAlign: 'center',
+  },
   fatigue: { color: tones.warn.fg, fontFamily: fonts.bodyBold, fontSize: 9 },
   lock: { color: colors.faint, fontFamily: fonts.bodyBold, fontSize: 9 },
   hereLabel: {

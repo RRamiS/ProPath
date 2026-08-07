@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   applyChoice,
+  applyObjectiveClaims,
   applyWeekActivity,
   buyItem,
   closeSeason,
@@ -32,6 +33,14 @@ import { applyMinigameResult, type MinigameGrade } from '../minigames/applyResul
 import { resolveMatch } from '../match/simulate';
 import { markNpcMet } from '../engine/npcDirector';
 import { currentPlayableEvent } from '../engine/applyChoice';
+import {
+  clearSave,
+  loadSave,
+  saveGame,
+  summarizeSave,
+  toSaveScreen,
+  type SaveSummary,
+} from './persist';
 
 type Screen =
   | 'home'
@@ -64,11 +73,18 @@ interface GameStore {
   cinematic: CinematicPayload | null;
   matchPhase: MatchPhase;
   talkSession: TalkSession | null;
+  /** True cuando ya se intentó leer el save al boot. */
+  hydrated: boolean;
+  saveSummary: SaveSummary | null;
   setScreen: (s: Screen) => void;
   setDraft: (p: Partial<PlayerProfile>) => void;
+  hydrate: () => Promise<void>;
+  continueCareer: () => Promise<void>;
+  /** Menú: vuelve al home sin borrar el save. */
+  goHome: () => Promise<void>;
   startCareer: () => void;
   switchRole: (roleId: string) => void;
-  pickActivity: (activityId: WeekActivityId, variantId?: string) => void;
+  pickActivity: (activityId: WeekActivityId, variantId?: string, variantOk?: boolean) => void;
   resolveLiveMatch: (choices: string[], opponent: string, seriesMomentum?: number) => void;
   continueAfterMatch: () => void;
   choose: (choiceId: string) => void;
@@ -81,9 +97,11 @@ interface GameStore {
   continueNextSeason: () => void;
   retireCareer: () => void;
   talkToNpc: (kind: RelationKey, line?: string) => void;
-  chooseTalk: (choiceId: string) => void;
+  chooseTalk: (choiceId: string, success?: boolean) => void;
   clearTalk: () => void;
+  completeOnboard: () => void;
   softFail: (notice: string) => void;
+  /** Nueva carrera: borra save. */
   reset: () => void;
 }
 
@@ -162,10 +180,61 @@ export const useGameStore = create<GameStore>((set, get) => ({
   cinematic: null,
   matchPhase: 'live',
   talkSession: null,
+  hydrated: false,
+  saveSummary: null,
 
   setScreen: (screen) => set({ screen }),
 
   setDraft: (p) => set({ draft: { ...get().draft, ...p } }),
+
+  hydrate: async () => {
+    const save = await loadSave();
+    set({
+      hydrated: true,
+      saveSummary: save ? summarizeSave(save) : null,
+    });
+  },
+
+  continueCareer: async () => {
+    const save = await loadSave();
+    if (!save) {
+      set({ saveSummary: null });
+      return;
+    }
+    const screen = save.career.endingId ? 'ending' : save.screen;
+    set({
+      career: save.career,
+      screen,
+      matchPhase: save.matchPhase,
+      talkSession: null,
+      activeMinigame: null,
+      cinematic: null,
+      saveSummary: summarizeSave(save),
+    });
+  },
+
+  goHome: async () => {
+    const { career, screen, matchPhase } = get();
+    const playable = toSaveScreen(screen);
+    if (career) {
+      await saveGame({ career, screen: playable, matchPhase });
+    }
+    set({
+      screen: 'home',
+      talkSession: null,
+      cinematic: null,
+      activeMinigame: null,
+      saveSummary: career
+        ? summarizeSave({
+            version: 1,
+            savedAt: Date.now(),
+            career,
+            screen: playable,
+            matchPhase,
+          })
+        : get().saveSummary,
+    });
+  },
 
   dismissCinematic: () => set({ cinematic: null }),
 
@@ -198,14 +267,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  chooseTalk: (choiceId) => {
+  chooseTalk: (choiceId, success = true) => {
     const { career, talkSession } = get();
     if (!career || !talkSession) return;
-    const next = applyTalkChoice(career, talkSession, choiceId);
+    const next = applyTalkChoice(career, talkSession, choiceId, success);
     set({ career: next, talkSession: null });
   },
 
   clearTalk: () => set({ talkSession: null }),
+
+  completeOnboard: () => {
+    const { career } = get();
+    if (!career) return;
+    set({
+      career: {
+        ...career,
+        flags: { ...career.flags, onboardDone: 1 },
+      },
+    });
+  },
 
   softFail: (notice) => {
     const { career } = get();
@@ -252,16 +332,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
           `${nation?.name ?? ''} · ${role?.name ?? draft.roleId?.toUpperCase()} · ${career.ageYears} años.`,
           role?.stakes ??
             'Tu rol define cómo crecés, cómo jugás las series y cómo te lee el circuito.',
-          'Tocá objetos, viajá por la ciudad, hablá con tu gente.',
+          'Tocá un objeto → elegí entre 3 → si pide skill, ejecutalo.',
+          'Abrí el MAPA: vas a ver quién está en cada sede.',
         ],
       },
     });
+    void saveGame({
+      career,
+      screen: 'weekHub',
+      matchPhase: 'live',
+    }).then(async () => {
+      const save = await loadSave();
+      set({ saveSummary: save ? summarizeSave(save) : null });
+    });
   },
 
-  pickActivity: (activityId, variantId) => {
+  pickActivity: (activityId, variantId, variantOk = true) => {
     const { pack, career } = get();
     if (!career || career.endingId || career.phase === 'seasonBreak') return;
-    const outcome = applyWeekActivity(pack, career, activityId, variantId);
+    const outcome = applyWeekActivity(pack, career, activityId, variantId, variantOk);
     let next = outcome.state;
 
     if (outcome.kind === 'ending') {
@@ -310,7 +399,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const { career } = get();
     if (!career) return;
     const { state: afterMatch } = resolveMatch(career, choices, opponent, seriesMomentum);
-    set({ career: afterMatch, screen: 'match', matchPhase: 'result' });
+    set({
+      career: applyObjectiveClaims(afterMatch),
+      screen: 'match',
+      matchPhase: 'result',
+    });
   },
 
   dismissNotice: () => {
@@ -434,7 +527,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  reset: () =>
+  reset: () => {
+    void clearSave();
     set({
       career: null,
       screen: 'home',
@@ -443,5 +537,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
       cinematic: null,
       matchPhase: 'live',
       talkSession: null,
-    }),
+      saveSummary: null,
+    });
+  },
 }));
+
+/** Autosave: cada cambio de carrera / pantalla jugable. */
+useGameStore.subscribe((state, prev) => {
+  if (!state.hydrated) return;
+  if (!state.career) return;
+  if (
+    state.career === prev.career &&
+    state.screen === prev.screen &&
+    state.matchPhase === prev.matchPhase
+  ) {
+    return;
+  }
+  void saveGame({
+    career: state.career,
+    screen: toSaveScreen(state.screen),
+    matchPhase: state.matchPhase,
+  });
+});

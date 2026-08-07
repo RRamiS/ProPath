@@ -15,3 +15,5 @@ export * from './npcDirector';
 export * from './role';
 export * from './talkBeats';
 export * from './activityChoices';
+export * from './activityReport';
+export * from './interact';

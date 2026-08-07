@@ -226,7 +226,10 @@ export function RoomScene({
   };
 
   const hotThreads = career.activeThreads.filter((t) => t.intensity >= 40).slice(0, 2);
-  const showBanner = upgrades.banner || order >= 4;
+  const claimBanner =
+    typeof career.flags.claimBannerUntil === 'number' &&
+    career.flags.claimBannerUntil >= career.turn;
+  const showBanner = upgrades.banner || order >= 4 || claimBanner;
 
   const focusSpec = selected?.spec ?? hintSpec;
   const playerSpot = walkTarget ?? (focusSpec ? standingSpot(focusSpec) : { fx: 1.2, fy: -2.6 });
@@ -298,6 +301,15 @@ export function RoomScene({
                 <View style={[styles.calloutLine, { backgroundColor: tones[tone].fg }]} />
                 <View style={[styles.calloutTab, { backgroundColor: tones[tone].fg }]}>
                   <Text style={styles.calloutText}>{slot.activity.label.toUpperCase()}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            {spec.id === 'banner' && claimBanner ? (
+              <View style={styles.callout} pointerEvents="none">
+                <View style={[styles.calloutLine, { backgroundColor: tones.gold.fg }]} />
+                <View style={[styles.calloutTab, { backgroundColor: tones.gold.fg }]}>
+                  <Text style={styles.calloutText}>META OK</Text>
                 </View>
               </View>
             ) : null}

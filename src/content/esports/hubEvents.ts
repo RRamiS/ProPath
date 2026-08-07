@@ -36,7 +36,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'scrim_coach_talk',
     title: '1-on-1 con {{coach}}',
-    body: 'El coach te llama aparte tras el bloque. “Tu wave management está flojo.”',
+    body: 'El coach te llama aparte tras el bloque. “Estás manejando mal las oleadas.”',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['scrim', 'vod'],
     requireRelations: { coach: 35 },
@@ -87,7 +87,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'rest_body_check',
     title: 'Chequeo físico',
-    body: 'Dormiste bien. El fisio dice que estás listo… si no volvés a farmear 14h.',
+    body: 'Dormiste bien. El fisio dice que estás listo… si no volvés a grindear 14 horas.',
     stages: ['soloq', 'academy', 'challengers'],
     activityTags: ['rest'],
     weight: 7,
@@ -140,7 +140,7 @@ export const hubEvents: GameEvent[] = [
     choices: [
       {
         id: 'own_it',
-        label: 'Own it en review',
+        label: 'Bancártela en la review',
         effect: {
           stats: { gameSense: 5, mentality: 2 },
           relations: { coach: 4, rival: 2 },
@@ -148,12 +148,12 @@ export const hubEvents: GameEvent[] = [
       },
       {
         id: 'blame_draft',
-        label: 'Culpar el draft',
+        label: 'Culpar la composición',
         effect: { stats: { teamwork: -5, mentality: -4 }, relations: { coach: -5, duo: -3 } },
       },
       {
         id: 'queue_revenge',
-        label: 'Abrir SoloQ de tilt',
+        label: 'Abrir ranked enojado',
         effect: { stats: { mechanics: 2, mentality: -8 } },
       },
     ],
@@ -161,7 +161,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'duo_chemistry_peak',
     title: 'Synergy con el duo',
-    body: '{{duo}} y vos leen el mismo timer sin hablar. {{coach}} lo nota en el scrim.',
+    body: '{{duo}} y vos leen el mismo timing sin hablar. {{coach}} lo nota en el scrim.',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['scrim', 'soloq'],
     requireRelations: { duo: 60 },
@@ -196,12 +196,12 @@ export const hubEvents: GameEvent[] = [
     choices: [
       {
         id: 'lock_in',
-        label: 'Lock in y demonstrar',
+        label: 'Entrar y demostrar',
         effect: { stats: { mechanics: 6, mentality: -2 }, relations: { rival: 5 } },
       },
       {
         id: 'respect_ff',
-        label: 'Jugar clean, sin flame',
+        label: 'Jugar limpio, sin flame',
         effect: { stats: { reputation: 4, mentality: 3 }, relations: { rival: 2 } },
       },
     ],
@@ -319,8 +319,8 @@ export const hubEvents: GameEvent[] = [
   // —— Eventos legacy con filtro de rol ——
   {
     id: 'mid_wave_lab',
-    title: 'Lab de wave mid',
-    body: '{{coach}} pone el VOD en pausa: tu crash timing está un segundo tarde. Solo mid lo ve así.',
+    title: 'Lab de oleadas mid',
+    body: '{{coach}} pone la replay en pausa: empujás la oleada un segundo tarde. Solo mid lo ve así.',
     stages: ['soloq', 'academy', 'challengers'],
     roleTags: ['mid'],
     activityTags: ['vod', 'soloq'],
@@ -328,7 +328,7 @@ export const hubEvents: GameEvent[] = [
     choices: [
       {
         id: 'drill_waves',
-        label: 'Drill de oleadas',
+        label: 'Practicar oleadas',
         effect: { stats: { gameSense: 6, mechanics: 2 }, relations: { coach: 4 } },
       },
       {
@@ -340,8 +340,8 @@ export const hubEvents: GameEvent[] = [
   },
   {
     id: 'jgl_camp_timing',
-    title: 'Timing de camps',
-    body: 'El clear del segundo buff te deja tarde al scuttle. {{coach}} quiere un path nuevo esta semana.',
+    title: 'Timing de campamentos',
+    body: 'Limpiar el segundo buff te deja tarde al objetivo del río. {{coach}} quiere una ruta nueva esta semana.',
     stages: ['academy', 'challengers', 'tier1'],
     roleTags: ['jungle'],
     activityTags: ['vod', 'scrim'],
@@ -349,7 +349,7 @@ export const hubEvents: GameEvent[] = [
     choices: [
       {
         id: 'new_path',
-        label: 'Adoptar el path',
+        label: 'Adoptar la ruta nueva',
         effect: { stats: { gameSense: 7 }, relations: { coach: 5 } },
       },
       {
@@ -361,8 +361,8 @@ export const hubEvents: GameEvent[] = [
   },
   {
     id: 'bot_lane_sync',
-    title: 'Sync de bot lane',
-    body: '{{duo}} propone un plan de trades. O alinean o la lane se rompe sola.',
+    title: 'Sincronizar bot',
+    body: '{{duo}} propone un plan de intercambios. O se alinean o la línea se rompe sola.',
     stages: ['soloq', 'academy', 'challengers'],
     roleTags: ['adc', 'support'],
     activityTags: ['scrim', 'soloq'],

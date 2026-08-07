@@ -5,6 +5,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { activityChoicesFor } from '../engine/activityChoices';
+import { verbLabel } from '../engine/interact';
 import { relationBonuses } from '../engine/relations';
 import type { CareerState, ContentPack } from '../engine/types';
 import { activityImpact } from '../engine/week';
@@ -118,7 +119,12 @@ export function ActionSheet({
               tone={slot.tone}
               style={styles.variantCard}
             >
-              <Text style={styles.variantLabel}>{v.label}</Text>
+              <View style={styles.variantHead}>
+                {verbLabel(v.verb) ? (
+                  <Text style={styles.variantVerb}>{verbLabel(v.verb)}</Text>
+                ) : null}
+                <Text style={styles.variantLabel}>{v.label}</Text>
+              </View>
               <Text style={styles.variantHint}>{v.hint}</Text>
             </PressCard>
           ))}
@@ -196,10 +202,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   variantCard: { gap: 2, paddingVertical: 10 },
+  variantHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  variantVerb: {
+    color: colors.gold,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
   variantLabel: {
     color: colors.text,
     fontFamily: fonts.bodyBold,
     fontSize: 14,
+    flex: 1,
   },
   variantHint: {
     color: colors.muted,

@@ -238,6 +238,19 @@ function salience(
     }
   }
 
+  // Rivalidad escalonada: customs/showdown solo si el hilo ya ardió.
+  const rivalry = state.activeThreads.find((t) => t.kind === 'rivalry');
+  const rivalIntensity = rivalry?.intensity ?? 0;
+  if (arch.id === 'rival_customs') {
+    if (rivalIntensity < 40) w *= 0.02;
+    else w *= 2.2;
+  }
+  if (arch.id === 'rival_showdown') {
+    if (rivalIntensity < 70) w *= 0.02;
+    else w *= 2.8;
+  }
+  if (arch.id === 'rival_probe' && rivalIntensity >= 55) w *= 0.45;
+
   if (state.flags.lastArchetype === arch.id) w *= 0.35;
 
   if (arch.family === 'performance' && (state.fatigue >= 65 || state.form <= 42)) w *= 1.7;

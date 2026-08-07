@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -31,7 +32,9 @@ import {
 } from '../ui/components';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
-import { TimingLane } from '../ui/TimingLane';
+import type { InteractVerb } from '../engine/interact';
+import { VerbChallenge } from '../ui/VerbChallenge';
+import { buzzMatch } from '../ui/feedback';
 import {
   colors,
   fonts,
@@ -43,34 +46,93 @@ import {
   UNSKEW,
 } from '../ui/theme';
 
+function phaseSkill(phase: string): { verb: InteractVerb; blurb: string; sortItems?: string[] } {
+  switch (phase) {
+    case 'draft':
+      return {
+        verb: 'sort',
+        blurb: 'Ordená prioridades de draft. Si fallás el ritmo, el rival toma prio.',
+        sortItems: ['Ban peligro', 'Prio early', 'Flex', 'Comfort'],
+      };
+    case 'early':
+      return {
+        verb: 'timing',
+        blurb: 'Timing de lane. Soltá mal y el impulso se va al otro lado.',
+      };
+    case 'fight':
+      return {
+        verb: 'tap',
+        blurb: 'Ventana de pelea. Tocá en verde o el fight se rompe.',
+      };
+    default:
+      return {
+        verb: 'hold',
+        blurb: 'Cierre bajo presión. Mantené el call hasta el final.',
+      };
+  }
+}
+
 /** Barra de impulso bajo el diorama — los sprites viven en ArenaScene. */
 function MomentumBar({
   momentum,
   winChance,
   subtitle,
+  flash,
 }: {
   momentum: SharedValue<number>;
   winChance: number;
   subtitle: string;
+  flash: 'up' | 'down' | null;
 }) {
+  const pulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (!flash) return;
+    pulse.value = withSequence(
+      withSpring(1.04, springs.bouncy),
+      withSpring(1, springs.snappy)
+    );
+  }, [flash, pulse]);
+
   const barStyle = useAnimatedStyle(() => ({
     width: `${momentum.value}%`,
   }));
+  const wrapStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }));
+
+  const edge =
+    flash === 'up' ? colors.accent : flash === 'down' ? colors.danger : colors.danger;
 
   return (
-    <View style={styles.broadcast}>
-      <View style={[styles.broadcastEdge, { backgroundColor: colors.danger }]} />
+    <Animated.View style={[styles.broadcast, wrapStyle]}>
+      <View style={[styles.broadcastEdge, { backgroundColor: edge }]} />
       <View style={styles.momTrack}>
-        <Animated.View style={[styles.momFill, barStyle]} />
+        <Animated.View
+          style={[
+            styles.momFill,
+            barStyle,
+            flash === 'up' && { backgroundColor: colors.accent },
+            flash === 'down' && { backgroundColor: colors.danger },
+          ]}
+        />
         <View style={styles.momCenter} />
       </View>
       <View style={styles.momLabels}>
         <Text style={[styles.momLabel, { color: colors.accent }]}>IMPULSO</Text>
-        <Text style={styles.momChance}>~{winChance}% ganar</Text>
+        <Text
+          style={[
+            styles.momChance,
+            flash === 'up' && { color: colors.accent },
+            flash === 'down' && { color: colors.danger },
+          ]}
+        >
+          {flash === 'up' ? '▲ ' : flash === 'down' ? '▼ ' : ''}~{winChance}% ganar
+        </Text>
         <Text style={[styles.momLabel, { color: colors.danger }]}>PRESIÓN RIVAL</Text>
       </View>
       <Text style={styles.formLine}>{subtitle}</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -131,6 +193,10 @@ function MatchResultView({
   const tone = result.won ? colors.accent : colors.danger;
   const maxFactor = Math.max(0.4, ...result.factors.map((f) => Math.abs(f.value)));
   const total = result.factors.reduce((s, f) => s + f.value, 0);
+
+  useEffect(() => {
+    buzzMatch(result.won);
+  }, [result.won, result.opponent, result.scoreLine]);
 
   return (
     <FadeSlide>
@@ -230,6 +296,7 @@ export function LiveMatchScreen() {
   const [feed, setFeed] = useState<string[]>(['Cámaras encendidas · draft en curso']);
   const [momValue, setMomValue] = useState(50);
   const [skill, setSkill] = useState<MatchChoice | null>(null);
+  const [flash, setFlash] = useState<'up' | 'down' | null>(null);
   const momentum = useSharedValue(50);
 
   if (!career) return null;
@@ -243,9 +310,11 @@ export function LiveMatchScreen() {
     const nextChoices = [...choices, choiceId];
     setChoices(nextChoices);
     setFeed((f) => [...f, feedLine(phaseIndex, choiceId)].slice(-5));
-    const nextMom = Math.max(8, Math.min(92, momValue + momDelta * 11));
+    const nextMom = Math.max(5, Math.min(95, momValue + momDelta * 13));
     setMomValue(nextMom);
     momentum.value = withSpring(nextMom, springs.progress);
+    setFlash(momDelta >= 0 ? 'up' : 'down');
+    setTimeout(() => setFlash(null), 700);
 
     if (phaseIndex + 1 >= beats.length) {
       resolveLiveMatch(nextChoices, liveOpponent, nextMom);
@@ -282,6 +351,7 @@ export function LiveMatchScreen() {
           <MomentumBar
             momentum={momentum}
             winChance={winChance}
+            flash={flash}
             subtitle={
               showingResult
                 ? `Récord ${career.wins}V · ${career.losses}D`
@@ -303,23 +373,30 @@ export function LiveMatchScreen() {
               form={career.form}
               onContinue={continueAfterMatch}
             />
-          ) : skill ? (
-            <FadeSlide key={`skill-${skill.id}`}>
-              <Text style={styles.skillTitle}>EJECUTAR LA JUGADA</Text>
-              <Text style={styles.beatBody}>
-                Elegiste “{skill.label}”. Mantené el timing — si fallás, el impulso se va al rival.
+          ) : skill && beat ? (
+            <FadeSlide key={`skill-${skill.id}-${beat.phase}`}>
+              <Text style={styles.skillTitle}>
+                EJECUTAR · {beat.phase.toUpperCase()}
               </Text>
-              <TimingLane
+              <Text style={styles.beatBody}>
+                Elegiste “{skill.label}”. {phaseSkill(beat.phase).blurb}
+              </Text>
+              <VerbChallenge
+                verb={phaseSkill(beat.phase).verb}
                 label={skill.hint ?? skill.label}
+                sortItems={phaseSkill(beat.phase).sortItems}
                 onDone={(ok) => {
                   const choice = skill;
+                  const phase = beat.phase;
                   setSkill(null);
                   if (ok) {
-                    setFeed((f) => [...f, 'Skill check limpio'].slice(-5));
+                    setFeed((f) => [...f, `Play limpio · ${phase}`].slice(-5));
                     applyPick(choice.id, choice.momentum);
                   } else {
-                    setFeed((f) => [...f, 'Fallaste el play — presión rival'].slice(-5));
-                    applyPick(choice.id, -2);
+                    // Fallar duele más en fight/cierre.
+                    const punish = phase === 'late' || phase === 'fight' ? -3 : -2;
+                    setFeed((f) => [...f, `Fallaste · presión rival (${phase})`].slice(-5));
+                    applyPick(choice.id, punish);
                   }
                 }}
               />
@@ -354,7 +431,9 @@ export function LiveMatchScreen() {
                             <Text style={styles.choiceLabel}>{c.label}</Text>
                             {c.hint ? <Text style={styles.choiceHint}>{c.hint}</Text> : null}
                             {c.momentum >= 1 ? (
-                              <Text style={styles.choiceHint}>Requiere skill check</Text>
+                              <Text style={styles.choiceHint}>
+                                Skill · {phaseSkill(beat.phase).verb}
+                              </Text>
                             ) : null}
                           </View>
                           <Chip

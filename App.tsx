@@ -1,4 +1,5 @@
 import 'react-native-reanimated';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Syne_700Bold, Syne_800ExtraBold } from '@expo-google-fonts/syne';
@@ -17,6 +18,7 @@ import { SeasonBreakScreen } from './src/screens/SeasonBreakScreen';
 import { LiveMatchScreen } from './src/match/LiveMatch';
 import { MinigameScreen } from './src/minigames/MinigameScreen';
 import { CinematicOverlay } from './src/ui/Cinematic';
+import { initAudio } from './src/ui/audio';
 import { useGameStore } from './src/store/gameStore';
 import { colors } from './src/ui/theme';
 
@@ -44,8 +46,22 @@ export default function App() {
     DMSans_600SemiBold,
     DMSans_700Bold,
   });
+  const hydrated = useGameStore((s) => s.hydrated);
+  const hydrate = useGameStore((s) => s.hydrate);
+  const [boot, setBoot] = useState(false);
 
-  if (!fontsLoaded) {
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      await Promise.all([hydrate(), initAudio()]);
+      if (alive) setBoot(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [hydrate]);
+
+  if (!fontsLoaded || !hydrated || !boot) {
     return (
       <View style={styles.boot}>
         <ActivityIndicator color={colors.accent} />
