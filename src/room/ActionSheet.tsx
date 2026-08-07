@@ -1,13 +1,14 @@
 /**
  * Lower third de la escena: qué hace el objeto que tocaste y qué te cuesta.
- * Números reales del bloque, no los de la ficha. Sin sorpresas.
+ * Si hay variantes, pedís elegir entre 3 con pros/contras (no un solo "Hacerlo").
  */
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { activityChoicesFor } from '../engine/activityChoices';
 import { relationBonuses } from '../engine/relations';
 import type { CareerState, ContentPack } from '../engine/types';
 import { activityImpact } from '../engine/week';
-import { Button, Chip } from '../ui/components';
+import { Button, Chip, PressCard } from '../ui/components';
 import { colors, fonts, SKEW, tones, UNSKEW } from '../ui/theme';
 import type { RoomSlot } from './RoomScene';
 
@@ -34,12 +35,13 @@ export function ActionSheet({
   slot: RoomSlot;
   career: CareerState;
   pack: ContentPack;
-  onConfirm: () => void;
+  onConfirm: (variantId?: string) => void;
   onCancel: () => void;
 }) {
   const impact = activityImpact(slot.activity, career.daypart);
   const t = tones[slot.tone];
   const perk = perkNote(slot, career);
+  const variants = activityChoicesFor(slot.activity.id, career.venueId);
 
   const statChips = Object.entries(impact.stats)
     .filter(([, v]) => typeof v === 'number' && v !== 0)
@@ -106,15 +108,33 @@ export function ActionSheet({
         </View>
       ) : null}
 
-      <View style={styles.actions}>
-        <Button label="Volver" variant="ghost" onPress={onCancel} style={styles.ghostBtn} />
-        <Button
-          label={slot.activity.id === 'match' ? 'Salir a la cancha' : 'Hacerlo'}
-          tone={slot.tone}
-          onPress={onConfirm}
-          style={styles.mainBtn}
-        />
-      </View>
+      {variants ? (
+        <View style={styles.variants}>
+          <Text style={styles.variantsLabel}>¿CÓMO LO HACÉS?</Text>
+          {variants.map((v) => (
+            <PressCard
+              key={v.id}
+              onPress={() => onConfirm(v.id)}
+              tone={slot.tone}
+              style={styles.variantCard}
+            >
+              <Text style={styles.variantLabel}>{v.label}</Text>
+              <Text style={styles.variantHint}>{v.hint}</Text>
+            </PressCard>
+          ))}
+          <Button label="Volver" variant="ghost" onPress={onCancel} style={styles.ghostBtn} />
+        </View>
+      ) : (
+        <View style={styles.actions}>
+          <Button label="Volver" variant="ghost" onPress={onCancel} style={styles.ghostBtn} />
+          <Button
+            label={slot.activity.id === 'match' ? 'Salir a la cancha' : 'Hacerlo'}
+            tone={slot.tone}
+            onPress={() => onConfirm()}
+            style={styles.mainBtn}
+          />
+        </View>
+      )}
     </Animated.View>
   );
 }
@@ -167,6 +187,24 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.bodySemi,
     fontSize: 11.5,
+  },
+  variants: { gap: 6, marginTop: 2 },
+  variantsLabel: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    letterSpacing: 1.4,
+  },
+  variantCard: { gap: 2, paddingVertical: 10 },
+  variantLabel: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+  },
+  variantHint: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 12,
   },
   actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
   ghostBtn: { flexGrow: 0, flexBasis: 96 },

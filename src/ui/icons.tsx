@@ -8,6 +8,9 @@ export type IconName =
   | 'rest'
   | 'content'
   | 'match'
+  | 'conditioning'
+  | 'physio'
+  | 'hangout'
   | 'trophy'
   | 'spark';
 
@@ -54,6 +57,7 @@ export function Icon({ name, color = colors.accent, size = 20 }: Props) {
         </View>
       );
 
+    case 'conditioning':
     case 'scrim':
       return (
         <View style={[box, styles.center]}>
@@ -97,6 +101,7 @@ export function Icon({ name, color = colors.accent, size = 20 }: Props) {
         </View>
       );
 
+    case 'physio':
     case 'rest':
       return (
         <View style={[box, styles.centerRow]}>
@@ -121,6 +126,7 @@ export function Icon({ name, color = colors.accent, size = 20 }: Props) {
         </View>
       );
 
+    case 'hangout':
     case 'content':
       return (
         <View style={[box, styles.centerRowBottom]}>

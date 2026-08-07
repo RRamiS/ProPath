@@ -35,10 +35,9 @@ export interface PropSpec {
 }
 
 /** Props que abren una actividad; el resto es ambientación. */
-const ACTION_IDS: PropId[] = ['rig', 'board', 'tv', 'bed', 'cam', 'door'];
+const ACTION_IDS: PropId[] = ['rig', 'board', 'tv', 'bed', 'cam', 'door', 'shelf'];
 
 const STAGE_GATE: Partial<Record<PropId, number>> = {
-  shelf: 3,
   banner: 4,
 };
 

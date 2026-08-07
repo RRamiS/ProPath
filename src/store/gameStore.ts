@@ -22,6 +22,11 @@ import {
   type WeekActivityId,
   switchRole as applyRoleSwitch,
 } from '../engine';
+import {
+  applyTalkChoice,
+  pickTalkBeat,
+  type TalkSession,
+} from '../engine/talkBeats';
 import { esportsPack } from '../content/esports/pack';
 import { applyMinigameResult, type MinigameGrade } from '../minigames/applyResult';
 import { resolveMatch } from '../match/simulate';
@@ -58,24 +63,26 @@ interface GameStore {
   activeMinigame: EventMinigame | null;
   cinematic: CinematicPayload | null;
   matchPhase: MatchPhase;
-  npcTalk: string | null;
+  talkSession: TalkSession | null;
   setScreen: (s: Screen) => void;
   setDraft: (p: Partial<PlayerProfile>) => void;
   startCareer: () => void;
   switchRole: (roleId: string) => void;
-  pickActivity: (activityId: WeekActivityId) => void;
-  resolveLiveMatch: (choices: string[], opponent: string) => void;
+  pickActivity: (activityId: WeekActivityId, variantId?: string) => void;
+  resolveLiveMatch: (choices: string[], opponent: string, seriesMomentum?: number) => void;
   continueAfterMatch: () => void;
   choose: (choiceId: string) => void;
   enterMinigame: () => void;
   completeMinigame: (grade: MinigameGrade) => void;
+  dismissNotice: () => void;
   dismissCinematic: () => void;
   buyShopItem: (itemId: string) => void;
   travel: (venueId: VenueId) => void;
   continueNextSeason: () => void;
   retireCareer: () => void;
-  talkToNpc: (kind: RelationKey, line: string) => void;
-  clearNpcTalk: () => void;
+  talkToNpc: (kind: RelationKey, line?: string) => void;
+  chooseTalk: (choiceId: string) => void;
+  clearTalk: () => void;
   softFail: (notice: string) => void;
   reset: () => void;
 }
@@ -154,7 +161,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   activeMinigame: null,
   cinematic: null,
   matchPhase: 'live',
-  npcTalk: null,
+  talkSession: null,
 
   setScreen: (screen) => set({ screen }),
 
@@ -162,16 +169,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   dismissCinematic: () => set({ cinematic: null }),
 
-  talkToNpc: (kind, line) => {
+  talkToNpc: (kind) => {
     const { career, pack } = get();
-    if (!career) {
-      set({ npcTalk: line });
-      return;
-    }
+    if (!career) return;
     const action = career.npcStates[kind].pendingAction;
     const prompted = openNpcActionSituation(pack, career, kind);
     if (prompted) {
-      set({ career: prompted, screen: 'play', npcTalk: null });
+      set({ career: prompted, screen: 'play', talkSession: null });
       return;
     }
     let next = markNpcMet(career, kind);
@@ -184,10 +188,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
         },
         lastNotice: `${next.roster[kind].name} evitó la conversación. La distancia se nota.`,
       };
+      set({ career: next, talkSession: null });
+      return;
     }
-    set({ career: next, npcTalk: line });
+    const { session, seed } = pickTalkBeat(next, kind);
+    set({
+      career: { ...next, rngSeed: seed },
+      talkSession: session,
+    });
   },
-  clearNpcTalk: () => set({ npcTalk: null }),
+
+  chooseTalk: (choiceId) => {
+    const { career, talkSession } = get();
+    if (!career || !talkSession) return;
+    const next = applyTalkChoice(career, talkSession, choiceId);
+    set({ career: next, talkSession: null });
+  },
+
+  clearTalk: () => set({ talkSession: null }),
 
   softFail: (notice) => {
     const { career } = get();
@@ -226,7 +244,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       screen: 'weekHub',
       activeMinigame: null,
       matchPhase: 'live',
-      npcTalk: null,
+      talkSession: null,
       cinematic: {
         vibe: 'kickoff',
         title: `${career.profile.name} entra al grind`,
@@ -240,10 +258,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  pickActivity: (activityId) => {
+  pickActivity: (activityId, variantId) => {
     const { pack, career } = get();
     if (!career || career.endingId || career.phase === 'seasonBreak') return;
-    const outcome = applyWeekActivity(pack, career, activityId);
+    const outcome = applyWeekActivity(pack, career, activityId, variantId);
     let next = outcome.state;
 
     if (outcome.kind === 'ending') {
@@ -261,7 +279,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (outcome.kind === 'slot') {
-      set({ career: next, screen: 'weekHub', npcTalk: null });
+      set({ career: next, screen: 'weekHub', talkSession: null });
       return;
     }
 
@@ -288,11 +306,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({ career: next, screen: 'play', cinematic: promo });
   },
 
-  resolveLiveMatch: (choices, opponent) => {
+  resolveLiveMatch: (choices, opponent, seriesMomentum = 50) => {
     const { career } = get();
     if (!career) return;
-    const { state: afterMatch } = resolveMatch(career, choices, opponent);
+    const { state: afterMatch } = resolveMatch(career, choices, opponent, seriesMomentum);
     set({ career: afterMatch, screen: 'match', matchPhase: 'result' });
+  },
+
+  dismissNotice: () => {
+    const { career } = get();
+    if (!career?.lastNotice) return;
+    set({ career: { ...career, lastNotice: null } });
   },
 
   continueAfterMatch: () => {
@@ -380,7 +404,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   travel: (venueId) => {
     const { career } = get();
     if (!career || career.endingId || career.phase === 'seasonBreak') return;
-    set({ career: travelTo(career, venueId), screen: 'weekHub', npcTalk: null });
+    set({ career: travelTo(career, venueId), screen: 'weekHub', talkSession: null });
   },
 
   continueNextSeason: () => {
@@ -418,6 +442,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
       activeMinigame: null,
       cinematic: null,
       matchPhase: 'live',
-      npcTalk: null,
+      talkSession: null,
     }),
 }));

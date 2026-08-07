@@ -33,6 +33,9 @@ const ACTIVITY_TONE: Record<string, Tone> = {
   rest: 'gold',
   content: 'warn',
   match: 'danger',
+  conditioning: 'accent',
+  physio: 'gold',
+  hangout: 'blue',
 };
 
 export interface RoomSlot {
@@ -49,11 +52,15 @@ export function roomSlots(career: CareerState, pack: ContentPack): RoomSlot[] {
   const layout = venueLayout(career.venueId);
   return layout.actions
     .map((spec) => {
-      const activity = WEEK_ACTIVITIES.find((a) => a.prop === spec.id);
+      const candidates = WEEK_ACTIVITIES.filter((a) => a.prop === spec.id);
+      const activity =
+        candidates.find((a) => venueAllows(career.venueId, a.id)) ?? candidates[0];
       if (!activity) return null;
 
       const stageOk = (activity.minStageOrder ?? 0) <= order;
-      const slotOk = activity.slots.includes(career.daypart);
+      const slotOk =
+        activity.slots.includes(career.daypart) ||
+        (activity.id === 'content' && career.venueId === 'cafe');
       const fixtureOk = activity.id !== 'match' || isMatchWeek(career, pack);
       const venueOk = venueAllows(career.venueId, activity.id);
 
@@ -220,7 +227,6 @@ export function RoomScene({
 
   const hotThreads = career.activeThreads.filter((t) => t.intensity >= 40).slice(0, 2);
   const showBanner = upgrades.banner || order >= 4;
-  const ownedSetup = career.ownedItems.length;
 
   const focusSpec = selected?.spec ?? hintSpec;
   const playerSpot = walkTarget ?? (focusSpec ? standingSpot(focusSpec) : { fx: 1.2, fy: -2.6 });
@@ -339,11 +345,6 @@ export function RoomScene({
 
       <View style={styles.venueTag} pointerEvents="none">
         <Text style={styles.venueTagText}>{layout.name.toUpperCase()}</Text>
-        <Text style={styles.ambience} numberOfLines={1}>
-          {career.worldClock.ambience}
-          {ownedSetup > 0 ? ` · setup ${ownedSetup}/5` : ''}
-          {hotThreads.length ? ` · ${hotThreads.length} hilo${hotThreads.length > 1 ? 's' : ''}` : ''}
-        </Text>
       </View>
     </IsoRoom>
   );
@@ -424,10 +425,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 10,
     letterSpacing: 1.2,
-  },
-  ambience: {
-    color: colors.faint,
-    fontFamily: fonts.body,
-    fontSize: 9,
   },
 });

@@ -474,11 +474,11 @@ export const SITUATION_ARCHETYPES: SituationArchetype[] = [
     family: 'performance',
     titleTemplate: 'Chequeo de forma',
     bodyTemplate:
-      '{{actor}} pone números en la mesa de {{venue}}: {{cause}}. No es un ataque… todavía.',
+      '{{actor}} te para en {{venue}}. Ve un problema concreto: {{cause}}. ¿Cómo lo encarás?',
     stages: ['academy', 'challengers', 'tier1', 'worlds'],
     actors: ['coach', 'manager'],
     venues: ['academy', 'arena'],
-    causes: ['CS bajo', 'muertes tempranas', 'visión floja', 'draft predecible'],
+    causes: ['farm flojo', 'muertes tempranas', 'poca mala', 'draft predecible'],
     activityTags: ['vod', 'scrim', 'match'],
     weight: 9,
     cooldownTurns: 11,

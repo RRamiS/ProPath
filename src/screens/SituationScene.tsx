@@ -8,8 +8,6 @@ import type {
   SituationVerb,
 } from '../engine/types';
 import { currentPlayableEvent } from '../engine/applyChoice';
-import { npcSpawns } from '../engine/venues';
-import { RoomScene, roomSlots } from '../room/RoomScene';
 import { ChoiceBoard } from '../ui/ChoiceBoard';
 import { DialogueSheet } from '../ui/DialogueSheet';
 import { EffectChips } from '../ui/effects';
@@ -18,7 +16,8 @@ import { SortBoard } from '../ui/SortBoard';
 import { colors, fonts, space, tones } from '../ui/theme';
 
 /**
- * Escena de situación: diorama espacial + verbos gráficos (talk / sort / timing).
+ * Escena de situación: foco en la decisión.
+ * Sin mapa/sala debajo — el diorama del hub ya cumplió su rol.
  */
 export function SituationScene({
   career,
@@ -35,25 +34,26 @@ export function SituationScene({
 }) {
   const sit = career.currentSituation;
   const event = currentPlayableEvent(pack, career);
-  const slots = useMemo(() => roomSlots(career, pack), [career, pack]);
-  const npcs = useMemo(() => npcSpawns(career), [career]);
 
   const [activeVerb, setActiveVerb] = useState<{
     verb: SituationVerb;
     choice: SituationChoice;
   } | null>(null);
   const [talkPending, setTalkPending] = useState<SituationChoice | null>(null);
-  const [walkTarget, setWalkTarget] = useState<{ fx: number; fy: number } | null>(null);
-  const [focusOpen, setFocusOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const resolve = useCallback(
     (choiceId: string) => {
       setActiveVerb(null);
       setTalkPending(null);
-      setWalkTarget(null);
       onChoose(choiceId);
     },
     [onChoose]
+  );
+
+  const primaryActor = useMemo(
+    () => (sit?.actors?.[0] ?? null) as RelationKey | null,
+    [sit?.actors]
   );
 
   if (!event && !sit) {
@@ -73,17 +73,7 @@ export function SituationScene({
     }));
 
   const accent = sit?.visual.accent ?? 'accent';
-  const propHint = sit?.visual.propHint ?? 'rig';
   const t = tones[accent];
-  const primaryActor = (sit?.actors?.[0] ?? null) as RelationKey | null;
-  const primaryNpc = primaryActor ? npcs.find((n) => n.kind === primaryActor) : null;
-
-  const beginTalk = (choice: SituationChoice) => {
-    if (primaryNpc) {
-      setWalkTarget({ fx: primaryNpc.fx - 1.1, fy: primaryNpc.fy - 0.9 });
-    }
-    setTalkPending(choice);
-  };
 
   const handlePick = (id: string) => {
     const choice = choices.find((c) => c.id === id);
@@ -93,7 +83,7 @@ export function SituationScene({
       return;
     }
     if (choice.verb === 'talk') {
-      beginTalk(choice);
+      setTalkPending(choice);
       return;
     }
     resolve(id);
@@ -128,41 +118,20 @@ export function SituationScene({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.roomWrap}>
-        <RoomScene
-          career={career}
-          pack={pack}
-          slots={slots}
-          selectedId={null}
-          onSelect={() => undefined}
-          mode="situation"
-          highlightProp={propHint}
-          walkTarget={walkTarget}
-          onHighlightPress={() => setFocusOpen(true)}
-          onNpc={(npc) => {
-            setWalkTarget({ fx: npc.fx - 1.1, fy: npc.fy - 0.9 });
-            const talkChoice = choices.find((c) => c.verb === 'talk') ?? choices[0];
-            if (talkChoice) setTalkPending(talkChoice);
-          }}
-        />
-      </View>
-
       <View style={[styles.banner, { borderColor: t.border }]}>
         <Text style={[styles.family, { color: t.fg }]}>
-          {(sit?.family ?? 'legacy').toUpperCase()}
-          {sit?.cause ? ` · ${sit.cause}` : ''}
-          {` · ${propHint}`}
+          {(sit?.family ?? 'evento').toUpperCase()}
         </Text>
         <Text style={styles.title}>{title}</Text>
-        {(focusOpen || !sit) && <Text style={styles.body}>{body}</Text>}
+        {(detailOpen || !sit) && <Text style={styles.body}>{body}</Text>}
         {sit?.actors?.length ? (
           <Text style={styles.actors}>
             Con: {sit.actors.map((a) => career.roster[a].name).join(', ')}
           </Text>
         ) : null}
-        {!focusOpen && sit ? (
-          <Text style={styles.hintTap} onPress={() => setFocusOpen(true)}>
-            Tocá el foco en la sala o acá para leer el detalle →
+        {!detailOpen && sit ? (
+          <Text style={styles.hintTap} onPress={() => setDetailOpen(true)}>
+            Leer el detalle →
           </Text>
         ) : null}
       </View>
@@ -214,7 +183,6 @@ export function SituationScene({
 const styles = StyleSheet.create({
   wrap: { gap: space.md },
   missing: { color: colors.muted, fontFamily: fonts.body },
-  roomWrap: { borderWidth: 1, borderColor: colors.line, overflow: 'hidden' },
   banner: {
     borderWidth: 1,
     padding: space.md,

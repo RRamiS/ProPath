@@ -40,7 +40,7 @@ export function Ticker({ items, tone = 'blue' }: { items: string[]; tone?: Tone 
   return (
     <View style={[styles.wrap, { backgroundColor: t.bg, borderColor: t.border }]}>
       <View style={[styles.tag, { backgroundColor: t.fg }]}>
-        <Text style={styles.tagText}>SCENE</Text>
+        <Text style={styles.tagText}>HOY</Text>
       </View>
       <View style={styles.viewport}>
         <Animated.View style={[styles.track, style]}>

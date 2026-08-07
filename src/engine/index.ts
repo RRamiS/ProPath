@@ -13,3 +13,5 @@ export * from './situations';
 export * from './situationDirector';
 export * from './npcDirector';
 export * from './role';
+export * from './talkBeats';
+export * from './activityChoices';

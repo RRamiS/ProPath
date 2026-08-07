@@ -9,7 +9,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useGameStore } from '../store/gameStore';
 import { ArenaScene } from './ArenaScene';
-import { buildMatchBeats, feedLine, MATCH_PHASE_LABELS, pickOpponent } from './simulate';
+import {
+  buildMatchBeats,
+  feedLine,
+  MATCH_PHASE_LABELS,
+  momentumWinChance,
+  pickOpponent,
+  type MatchChoice,
+} from './simulate';
 import type { MatchFactor, MatchResult } from '../engine/types';
 import {
   BigNumber,
@@ -24,6 +31,7 @@ import {
 } from '../ui/components';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
+import { TimingLane } from '../ui/TimingLane';
 import {
   colors,
   fonts,
@@ -38,9 +46,11 @@ import {
 /** Barra de impulso bajo el diorama — los sprites viven en ArenaScene. */
 function MomentumBar({
   momentum,
+  winChance,
   subtitle,
 }: {
   momentum: SharedValue<number>;
+  winChance: number;
   subtitle: string;
 }) {
   const barStyle = useAnimatedStyle(() => ({
@@ -56,6 +66,7 @@ function MomentumBar({
       </View>
       <View style={styles.momLabels}>
         <Text style={[styles.momLabel, { color: colors.accent }]}>IMPULSO</Text>
+        <Text style={styles.momChance}>~{winChance}% ganar</Text>
         <Text style={[styles.momLabel, { color: colors.danger }]}>PRESIÓN RIVAL</Text>
       </View>
       <Text style={styles.formLine}>{subtitle}</Text>
@@ -217,6 +228,8 @@ export function LiveMatchScreen() {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [choices, setChoices] = useState<string[]>([]);
   const [feed, setFeed] = useState<string[]>(['Cámaras encendidas · draft en curso']);
+  const [momValue, setMomValue] = useState(50);
+  const [skill, setSkill] = useState<MatchChoice | null>(null);
   const momentum = useSharedValue(50);
 
   if (!career) return null;
@@ -224,21 +237,30 @@ export function LiveMatchScreen() {
   const showingResult = matchPhase === 'result' && career.lastMatch;
   const opponent = showingResult ? career.lastMatch!.opponent : liveOpponent;
   const beat = beats[phaseIndex];
+  const winChance = momentumWinChance(momValue);
 
-  const onPick = (choiceId: string, mom: number) => {
+  const applyPick = (choiceId: string, momDelta: number) => {
     const nextChoices = [...choices, choiceId];
     setChoices(nextChoices);
     setFeed((f) => [...f, feedLine(phaseIndex, choiceId)].slice(-5));
-    momentum.value = withSpring(
-      Math.max(10, Math.min(90, momentum.value + mom * 11)),
-      springs.progress
-    );
+    const nextMom = Math.max(8, Math.min(92, momValue + momDelta * 11));
+    setMomValue(nextMom);
+    momentum.value = withSpring(nextMom, springs.progress);
 
     if (phaseIndex + 1 >= beats.length) {
-      resolveLiveMatch(nextChoices, liveOpponent);
+      resolveLiveMatch(nextChoices, liveOpponent, nextMom);
       return;
     }
     setPhaseIndex((p) => p + 1);
+  };
+
+  const onPick = (choice: MatchChoice) => {
+    // Jugadas agresivas piden un skill check: fallar baja el impulso.
+    if (choice.momentum >= 1) {
+      setSkill(choice);
+      return;
+    }
+    applyPick(choice.id, choice.momentum);
   };
 
   const livePhase = beat?.phase ?? 'draft';
@@ -259,10 +281,11 @@ export function LiveMatchScreen() {
 
           <MomentumBar
             momentum={momentum}
+            winChance={winChance}
             subtitle={
               showingResult
                 ? `Récord ${career.wins}V · ${career.losses}D`
-                : `Forma ${Math.round(career.form)} · Fatiga ${Math.round(career.fatigue)} · Duo ${career.relations.duo}`
+                : `Forma ${Math.round(career.form)} pesa acá · Fatiga ${Math.round(career.fatigue)}`
             }
           />
 
@@ -280,6 +303,27 @@ export function LiveMatchScreen() {
               form={career.form}
               onContinue={continueAfterMatch}
             />
+          ) : skill ? (
+            <FadeSlide key={`skill-${skill.id}`}>
+              <Text style={styles.skillTitle}>EJECUTAR LA JUGADA</Text>
+              <Text style={styles.beatBody}>
+                Elegiste “{skill.label}”. Mantené el timing — si fallás, el impulso se va al rival.
+              </Text>
+              <TimingLane
+                label={skill.hint ?? skill.label}
+                onDone={(ok) => {
+                  const choice = skill;
+                  setSkill(null);
+                  if (ok) {
+                    setFeed((f) => [...f, 'Skill check limpio'].slice(-5));
+                    applyPick(choice.id, choice.momentum);
+                  } else {
+                    setFeed((f) => [...f, 'Fallaste el play — presión rival'].slice(-5));
+                    applyPick(choice.id, -2);
+                  }
+                }}
+              />
+            </FadeSlide>
           ) : (
             <>
               <View style={styles.feed}>
@@ -301,7 +345,7 @@ export function LiveMatchScreen() {
                   {beat.choices.map((c, i) => (
                     <FadeSlide key={c.id} delay={i * 45}>
                       <PressCard
-                        onPress={() => onPick(c.id, c.momentum)}
+                        onPress={() => onPick(c)}
                         tone={c.momentum > 0 ? 'accent' : c.momentum < 0 ? 'danger' : 'muted'}
                         style={styles.choice}
                       >
@@ -309,6 +353,9 @@ export function LiveMatchScreen() {
                           <View style={styles.choiceText}>
                             <Text style={styles.choiceLabel}>{c.label}</Text>
                             {c.hint ? <Text style={styles.choiceHint}>{c.hint}</Text> : null}
+                            {c.momentum >= 1 ? (
+                              <Text style={styles.choiceHint}>Requiere skill check</Text>
+                            ) : null}
                           </View>
                           <Chip
                             label={
@@ -457,6 +504,7 @@ const styles = StyleSheet.create({
   momLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 5,
   },
   momLabel: {
@@ -464,11 +512,24 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     letterSpacing: 1.4,
   },
+  momChance: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
   formLine: {
     color: colors.faint,
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
     marginTop: 10,
+  },
+  skillTitle: {
+    color: colors.danger,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 1.6,
+    marginBottom: 8,
   },
 
   stepperWrap: { marginBottom: 16 },

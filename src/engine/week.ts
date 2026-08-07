@@ -13,6 +13,7 @@ import { decayThreads } from './memory';
 import { tickNpcWorld } from './npcDirector';
 import { gainRoleMastery, roleTrainingBoost } from './role';
 import { venueAllows } from './venues';
+import { activityChoicesFor } from './activityChoices';
 import type {
   CareerState,
   ContentPack,
@@ -91,12 +92,13 @@ export const WEEK_ACTIVITIES: WeekActivity[] = [
   {
     id: 'rest',
     label: 'Descansar',
-    blurb: 'Dormir, entrenar, desconectar. La forma baja, la mente vuelve.',
+    blurb:
+      'Bajá fatiga y recuperá cabeza. En casa dormís; en el gym el cuerpo vuelve más fuerte (más forma).',
     stats: { mentality: 7, mechanics: -1 },
     form: 2,
     fatigue: -22,
     relations: {},
-    notice: 'Recovery. El body clock agradece.',
+    notice: 'Descanso. Fatiga baja, la mente vuelve.',
     slots: ['day', 'night'],
     prop: 'bed',
   },
@@ -126,6 +128,42 @@ export const WEEK_ACTIVITIES: WeekActivity[] = [
     fullWeek: true,
     prop: 'door',
   },
+  {
+    id: 'conditioning',
+    label: 'Entrenamiento físico',
+    blurb: 'Pesas, core, movilidad de competitivo. Sube forma; cansa el cuerpo.',
+    stats: { mentality: 2, mechanics: 2 },
+    form: 5,
+    fatigue: 10,
+    relations: {},
+    notice: 'Gym duro. La forma responde.',
+    slots: ['day'],
+    prop: 'board',
+  },
+  {
+    id: 'physio',
+    label: 'Fisio / recovery',
+    blurb: 'Foam, ojos, siesta corta. Baja fatiga sin apagar del todo la forma.',
+    stats: { mentality: 4, mechanics: -1 },
+    form: 1,
+    fatigue: -16,
+    relations: {},
+    notice: 'Fisio hecho. El cuerpo vuelve.',
+    slots: ['day', 'night'],
+    prop: 'shelf',
+  },
+  {
+    id: 'hangout',
+    label: 'Café con gente',
+    blurb: 'Mesa, chisme, meta. Relaciones primero; el grind espera.',
+    stats: { mentality: 3, reputation: 1 },
+    form: 0,
+    fatigue: -3,
+    relations: { duo: 3, manager: 2 },
+    notice: 'Café cerrado. El círculo suma.',
+    slots: ['day', 'night'],
+    prop: 'board',
+  },
 ];
 
 function clamp(n: number, min = 0, max = 100) {
@@ -136,12 +174,18 @@ export function getActivity(id: WeekActivityId): WeekActivity {
   return WEEK_ACTIVITIES.find((a) => a.id === id) ?? WEEK_ACTIVITIES[0]!;
 }
 
+function slotAllows(activity: WeekActivity, state: CareerState): boolean {
+  if (activity.slots.includes(state.daypart)) return true;
+  // El café de día no puede quedar vacío: contenido también vale ahí.
+  return activity.id === 'content' && state.venueId === 'cafe';
+}
+
 export function availableActivities(state: CareerState, pack: ContentPack): WeekActivity[] {
   const order = pack.stages.find((s) => s.id === state.stageId)?.order ?? 1;
   return WEEK_ACTIVITIES.filter(
     (a) =>
       (a.minStageOrder ?? 0) <= order &&
-      a.slots.includes(state.daypart) &&
+      slotAllows(a, state) &&
       venueAllows(state.venueId, a.id)
   );
 }
@@ -205,25 +249,29 @@ function applyRelations(rel: Relations, delta?: Partial<Relations>): Relations {
 
 function tickerFor(activity: WeekActivityId, state: CareerState): string[] {
   const name = state.profile.name;
-  const base = [
-    `Patch notes: ajustes al meta de ${state.profile.roleId}`,
-    `Scouts miran el server de ${state.flags.region ?? 'tu región'}`,
-  ];
   switch (activity) {
     case 'soloq':
-      return [`${name} farmea LP en silencio`, ...base];
+      return [`${name} farmea LP`, 'Manos calientes, cabeza cargada'];
     case 'scrim':
-      return ['Bloque de scrims · coach Marek en voice', ...base];
+      return ['Scrims con el roster', 'Teamplay en subida'];
     case 'vod':
-      return ['Sala de VOD · frame por frame', ...base];
+      return ['Lab de VOD', 'Menos ego, más lectura'];
     case 'rest':
-      return ['Día off · recovery protocol', ...base];
+      return state.venueId === 'gym'
+        ? ['Gym · cuerpo primero', 'Fatiga baja más que en casa']
+        : ['Descanso en casa', 'Fatiga baja, mente vuelve'];
+    case 'conditioning':
+      return ['Gym · conditioning', 'Forma en subida'];
+    case 'physio':
+      return ['Fisio / recovery', 'Fatiga bajando'];
+    case 'hangout':
+      return ['Café · mesa abierta', 'El círculo suma'];
     case 'content':
-      return ['Clip subiendo · comunidad activa', ...base];
+      return ['Contenido out', 'La marca suma'];
     case 'match':
-      return ['MATCH DAY · luces en la arena', `${name} en el draft room`];
+      return ['MATCH DAY', `${name} en el draft room`];
     default:
-      return base;
+      return [];
   }
 }
 
@@ -242,7 +290,9 @@ export type WeekOutcome =
 export function applyWeekActivity(
   pack: ContentPack,
   state: CareerState,
-  activityId: WeekActivityId
+  activityId: WeekActivityId,
+  /** Variante elegida (3 opciones al tocar el objeto). */
+  variantId?: string
 ): WeekOutcome {
   if (state.endingId) return { kind: 'ending', state };
   if (state.phase === 'seasonBreak') return { kind: 'season', state };
@@ -283,20 +333,62 @@ export function applyWeekActivity(
     delete boosted.money;
   }
 
+  const variant = variantId
+    ? activityChoicesFor(activityId, state.venueId)?.find((v) => v.id === variantId)
+    : undefined;
+  if (variant?.effect.stats) {
+    for (const [k, v] of Object.entries(variant.effect.stats)) {
+      if (typeof v === 'number') {
+        if (k === 'money') {
+          cashGain += Math.round(v * 8);
+        } else {
+          boosted[k] = (boosted[k] ?? 0) + v;
+        }
+      }
+    }
+  }
+
   let stats = applyStatDelta({ ...state.stats }, boosted);
-  let form = clamp(state.form + impact.form);
-  let fatigueDelta = impact.fatigue;
+  let form = clamp(state.form + impact.form + (variant?.effect.form ?? 0));
+  let fatigueDelta = impact.fatigue + (variant?.effect.fatigue ?? 0);
   if (activityId === 'rest') {
     fatigueDelta = Math.round(fatigueDelta * age.restNerf) + setup.restFatigue;
+    // El gym no es lo mismo que la cama: más recovery y un empujón de forma.
+    if (state.venueId === 'gym') {
+      fatigueDelta -= 8;
+      form = clamp(form + 3);
+      stats = applyStatDelta(stats, { mentality: 2 });
+    }
   }
   let fatigue = clamp(state.fatigue + fatigueDelta);
-  const relations = applyRelations(state.relations, impact.relations);
+  let relations = applyRelations(state.relations, impact.relations);
+  if (variant?.effect.relations) {
+    relations = applyRelations(relations, variant.effect.relations);
+  }
+  if (variant?.effect.flags) {
+    state = { ...state, flags: { ...state.flags, ...variant.effect.flags } };
+  }
+
+  const noticeFor = () => {
+    if (variant) return cashGain ? `${variant.notice} +$${cashGain}` : variant.notice;
+    if (cashGain) return `${activity.notice} +$${cashGain}`;
+    if (activityId === 'rest' && state.venueId === 'gym') {
+      return 'Gym: bajás más fatiga y subís forma. No es lo mismo que dormir en casa.';
+    }
+    return activity.notice;
+  };
 
   if (!impact.closesWeek) {
     const masteryGain =
-      activityId === 'rest' || activityId === 'content'
+      activityId === 'rest' ||
+      activityId === 'content' ||
+      activityId === 'physio' ||
+      activityId === 'hangout'
         ? 0
-        : activityId === 'vod' || activityId === 'scrim' || activityId === 'soloq'
+        : activityId === 'vod' ||
+            activityId === 'scrim' ||
+            activityId === 'soloq' ||
+            activityId === 'conditioning'
           ? 2
           : 1;
     let slotState: CareerState = {
@@ -309,7 +401,7 @@ export function applyWeekActivity(
       daypart: 'night',
       lastActivity: activityId,
       rngSeed: seed,
-      lastNotice: cashGain ? `${activity.notice} +$${cashGain}` : activity.notice,
+      lastNotice: noticeFor(),
       ticker: tickerFor(activityId, state),
       phase: 'hub',
       currentEventId: null,
@@ -346,7 +438,7 @@ export function applyWeekActivity(
     weekInSeason,
     daypart: 'day',
     rngSeed: seed,
-    lastNotice: cashGain ? `${activity.notice} +$${cashGain}` : activity.notice,
+    lastNotice: noticeFor(),
     ticker: tickerFor(activityId, state),
     phase: 'hub',
     currentEventId: null,

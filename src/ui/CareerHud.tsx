@@ -14,10 +14,17 @@ type Props = {
   onExit?: () => void;
 };
 
-function fatigueHint(fatigue: number): string | undefined {
-  if (fatigue >= 85) return 'Quemado: la forma se desploma';
-  if (fatigue >= 70) return 'Zona roja — conviene descansar';
-  return undefined;
+function formHint(form: number): string {
+  if (form >= 70) return 'En racha — suma chance de ganar series';
+  if (form < 40) return 'Fuera de ritmo — resta en partidos';
+  return 'Pesa al ganar o perder en Match Day';
+}
+
+function fatigueHint(fatigue: number): string {
+  if (fatigue >= 85) return 'Quemado: la forma se desploma sola';
+  if (fatigue >= 70) return 'Zona roja — conviene gym o cama';
+  if (fatigue >= 55) return 'Cargado — si seguís grind, pagás forma';
+  return 'Bajá esto con descanso (gym rinde más)';
 }
 
 /** Lower-third de broadcast: etapa, semana, marcador y estado físico. */
@@ -100,7 +107,7 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
 
         {!compact ? (
           <View style={styles.gauges}>
-            <Gauge label="Forma" value={career.form} />
+            <Gauge label="Forma" value={career.form} hint={formHint(career.form)} />
             <View style={styles.gaugeSplit} />
             <Gauge
               label="Fatiga"

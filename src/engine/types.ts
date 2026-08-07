@@ -42,7 +42,16 @@ export function getDuration(id: RunDurationId): RunDuration {
   return RUN_DURATIONS.find((d) => d.id === id) ?? RUN_DURATIONS[1]!;
 }
 
-export type WeekActivityId = 'soloq' | 'scrim' | 'vod' | 'rest' | 'content' | 'match';
+export type WeekActivityId =
+  | 'soloq'
+  | 'scrim'
+  | 'vod'
+  | 'rest'
+  | 'content'
+  | 'match'
+  | 'conditioning'
+  | 'physio'
+  | 'hangout';
 
 export interface Nation {
   id: string;

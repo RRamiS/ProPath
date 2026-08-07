@@ -18,8 +18,8 @@ import { ROOM_NAMES, venueLayout } from '../room/layout';
 import { RoomScene, roomSlots, type RoomSlot } from '../room/RoomScene';
 import { useGameStore } from '../store/gameStore';
 import { agePressure } from '../engine/season';
-import { getVenue, npcLine } from '../engine/venues';
-import { DialogueSheet } from '../ui/DialogueSheet';
+import { activityChoicesFor } from '../engine/activityChoices';
+import { getVenue } from '../engine/venues';
 import {
   Chip,
   IconBadge,
@@ -31,6 +31,8 @@ import {
   Shutter,
   Tag,
 } from '../ui/components';
+import { ChoiceBoard } from '../ui/ChoiceBoard';
+import { EffectChips } from '../ui/effects';
 import { CareerHud } from '../ui/CareerHud';
 import { FadeSlide } from '../ui/motion';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
@@ -249,9 +251,11 @@ export function WeekHubScreen() {
   const reset = useGameStore((s) => s.reset);
   const setScreen = useGameStore((s) => s.setScreen);
   const talkToNpc = useGameStore((s) => s.talkToNpc);
-  const clearNpcTalk = useGameStore((s) => s.clearNpcTalk);
-  const npcTalk = useGameStore((s) => s.npcTalk);
+  const chooseTalk = useGameStore((s) => s.chooseTalk);
+  const clearTalk = useGameStore((s) => s.clearTalk);
+  const talkSession = useGameStore((s) => s.talkSession);
   const retireCareer = useGameStore((s) => s.retireCareer);
+  const dismissNotice = useGameStore((s) => s.dismissNotice);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
@@ -289,9 +293,10 @@ export function WeekHubScreen() {
     });
   }
 
-  const commit = (slot: RoomSlot) => {
+  const commit = (slot: RoomSlot, variantId?: string) => {
     setSelectedId(null);
-    pickActivity(slot.activity.id);
+    clearTalk();
+    pickActivity(slot.activity.id, variantId);
   };
 
   return (
@@ -321,6 +326,9 @@ export function WeekHubScreen() {
               <Shutter>
                 <Panel tone="accent" glow label="Parte" style={styles.block}>
                   <Text style={styles.noticeText}>{career.lastNotice}</Text>
+                  <Pressable onPress={dismissNotice} style={styles.continueBtn}>
+                    <Text style={styles.continueBtnText}>CONTINUAR →</Text>
+                  </Pressable>
                 </Panel>
               </Shutter>
             ) : null}
@@ -339,12 +347,30 @@ export function WeekHubScreen() {
               </Panel>
             ) : null}
 
-            {npcTalk ? (
-              <DialogueSheet
-                speaker="Conversación"
-                line={npcTalk}
-                onClose={clearNpcTalk}
-              />
+            {talkSession ? (
+              <Panel
+                tone="blue"
+                glow
+                label={career.roster[talkSession.kind].name}
+                style={styles.block}
+              >
+                <Text style={styles.talkLine}>{talkSession.line}</Text>
+                <ChoiceBoard
+                  items={talkSession.choices.map((c) => ({
+                    id: c.id,
+                    label: c.label,
+                    hint: c.hint,
+                    effect: c.effect,
+                  }))}
+                  onChoose={chooseTalk}
+                  renderEffects={(effect) => (
+                    <EffectChips effect={effect} statLabels={pack.statLabels} />
+                  )}
+                />
+                <Pressable onPress={clearTalk} style={styles.talkDismiss}>
+                  <Text style={styles.talkDismissText}>Dejar para después</Text>
+                </Pressable>
+              </Panel>
             ) : null}
 
             <DaypartStrip career={career} matchWeek={isMatchWeek(career, pack)} />
@@ -388,7 +414,14 @@ export function WeekHubScreen() {
                 slots={slots}
                 career={career}
                 statLabels={pack.statLabels}
-                onPick={commit}
+                onPick={(slot) => {
+                  if (activityChoicesFor(slot.activity.id, career.venueId)) {
+                    setListView(false);
+                    setSelectedId(slot.spec.id);
+                  } else {
+                    commit(slot);
+                  }
+                }}
               />
             ) : (
               <View style={styles.roomWrap}>
@@ -398,20 +431,12 @@ export function WeekHubScreen() {
                   slots={slots}
                   selectedId={selectedId}
                   onSelect={(s) => {
-                    clearNpcTalk();
+                    clearTalk();
                     setSelectedId(s.spec.id);
                   }}
                   onNpc={(npc) => {
                     setSelectedId(null);
-                    talkToNpc(
-                      npc.kind,
-                      npcLine(
-                        npc.kind,
-                        career.daypart,
-                        career.rngSeed + npc.kind.length,
-                        career
-                      )
-                    );
+                    talkToNpc(npc.kind);
                   }}
                 />
                 {selected ? (
@@ -419,7 +444,7 @@ export function WeekHubScreen() {
                     slot={selected}
                     career={career}
                     pack={pack}
-                    onConfirm={() => commit(selected)}
+                    onConfirm={(variantId) => commit(selected, variantId)}
                     onCancel={() => setSelectedId(null)}
                   />
                 ) : (
@@ -505,6 +530,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     fontFamily: fonts.bodySemi,
+  },
+  talkLine: {
+    color: colors.text,
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  talkDismiss: { alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 },
+  talkDismissText: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+  },
+  continueBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    backgroundColor: colors.accent,
+    transform: [{ skewX: SKEW }],
+  },
+  continueBtnText: {
+    color: colors.onAccent,
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    letterSpacing: 1.2,
+    transform: [{ skewX: UNSKEW }],
   },
   warningText: {
     color: colors.danger,
