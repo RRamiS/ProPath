@@ -1,0 +1,18 @@
+# Arte fuente / Blender — no va al APK ni al upload de EAS
+assets/iso/source/
+.preview/
+.claude/
+
+# Build / tooling local
+dist/
+web-build/
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Docs / scripts pesados de render (no runtime)
+scripts/blender_render_rooms.py
+scripts/blender_*.py

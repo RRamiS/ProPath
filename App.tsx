@@ -1,7 +1,8 @@
 import 'react-native-reanimated';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Syne_700Bold, Syne_800ExtraBold } from '@expo-google-fonts/syne';
 import {
   DMSans_400Regular,
@@ -22,6 +23,10 @@ import { initAudio } from './src/ui/audio';
 import { useGameStore } from './src/store/gameStore';
 import { colors } from './src/ui/theme';
 
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* Expo Go / web — ok si ya se ocultó */
+});
+
 function ActiveScreen() {
   const screen = useGameStore((s) => s.screen);
 
@@ -37,6 +42,16 @@ function ActiveScreen() {
   return <HomeScreen />;
 }
 
+function useAndroidBack() {
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () =>
+      useGameStore.getState().handleHardwareBack()
+    );
+    return () => sub.remove();
+  }, []);
+}
+
 export default function App() {
   const [fontsLoaded] = useFonts({
     Syne_700Bold,
@@ -50,6 +65,8 @@ export default function App() {
   const hydrate = useGameStore((s) => s.hydrate);
   const [boot, setBoot] = useState(false);
 
+  useAndroidBack();
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -61,12 +78,15 @@ export default function App() {
     };
   }, [hydrate]);
 
-  if (!fontsLoaded || !hydrated || !boot) {
-    return (
-      <View style={styles.boot}>
-        <ActivityIndicator color={colors.accent} />
-      </View>
-    );
+  const ready = fontsLoaded && hydrated && boot;
+
+  useEffect(() => {
+    if (!ready) return;
+    SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+
+  if (!ready) {
+    return <View style={styles.boot} />;
   }
 
   return (
@@ -85,7 +105,5 @@ const styles = StyleSheet.create({
   boot: {
     flex: 1,
     backgroundColor: colors.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

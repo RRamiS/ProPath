@@ -111,6 +111,11 @@ interface GameStore {
   reset: () => void;
   /** Borra el save del disco (playtest). */
   deleteSave: () => Promise<void>;
+  /**
+   * Atrás de Android. true = consumido (no salir de la app).
+   * false = en home: el sistema puede cerrar.
+   */
+  handleHardwareBack: () => boolean;
 }
 
 const defaultDraft: Partial<PlayerProfile> = {
@@ -620,6 +625,72 @@ export const useGameStore = create<GameStore>((set, get) => ({
       talkSession: null,
       saveSummary: null,
     });
+  },
+
+  handleHardwareBack: () => {
+    const s = get();
+
+    if (s.cinematic) {
+      // Ending cinematic es largo a propósito; atrás vuelve al menú.
+      if (s.cinematic.vibe === 'ending') {
+        void get().goHome();
+        return true;
+      }
+      set({ cinematic: null });
+      return true;
+    }
+
+    if (s.talkSession) {
+      set({ talkSession: null });
+      return true;
+    }
+
+    switch (s.screen) {
+      case 'create':
+        set({ screen: 'home' });
+        return true;
+      case 'shop':
+      case 'city':
+        set({ screen: 'weekHub' });
+        return true;
+      case 'play':
+        if (s.career) {
+          set({
+            career: {
+              ...s.career,
+              phase: 'hub',
+              currentEventId: null,
+              currentSituation: null,
+            },
+            screen: 'weekHub',
+            activeMinigame: null,
+          });
+        } else {
+          set({ screen: 'weekHub', activeMinigame: null });
+        }
+        return true;
+      case 'minigame':
+        set({
+          screen: s.career?.currentSituation || s.career?.currentEventId ? 'play' : 'weekHub',
+          activeMinigame: null,
+        });
+        return true;
+      case 'match':
+        if (s.matchPhase === 'result') {
+          get().continueAfterMatch();
+          return true;
+        }
+        // En vivo: no salir al sistema a mitad de la serie.
+        return true;
+      case 'seasonBreak':
+      case 'weekHub':
+      case 'ending':
+        void get().goHome();
+        return true;
+      case 'home':
+      default:
+        return false;
+    }
   },
 }));
 
