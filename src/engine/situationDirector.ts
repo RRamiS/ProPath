@@ -1,10 +1,13 @@
 import { nextRng } from './rng';
 import { recentArchetypes, turnsSinceArchetype, upsertThread } from './memory';
+import { hasCustomsAccepted, rivalArchetypeForAction } from './rivalry';
+import { isMidSeasonDue } from './season';
 import { SITUATION_ARCHETYPES } from './situations';
 import type {
   CareerState,
   ContentPack,
   GameEvent,
+  NarrativeThread,
   RelationKey,
   SituationArchetype,
   SituationChoice,
@@ -238,15 +241,17 @@ function salience(
     }
   }
 
-  // Rivalidad escalonada: customs/showdown solo si el hilo ya ardió.
+  // Rivalidad escalonada: customs → showdown con progreso real.
   const rivalry = state.activeThreads.find((t) => t.kind === 'rivalry');
   const rivalIntensity = rivalry?.intensity ?? 0;
+  const customsDone = hasCustomsAccepted(state);
   if (arch.id === 'rival_customs') {
-    if (rivalIntensity < 40) w *= 0.02;
+    if (rivalIntensity < 40 || customsDone) w *= 0.02;
     else w *= 2.2;
   }
   if (arch.id === 'rival_showdown') {
-    if (rivalIntensity < 70) w *= 0.02;
+    if (rivalIntensity < 70 || !customsDone) w *= 0.02;
+    else if (Number(state.flags.rivalShowdownPending ?? 0) === 1) w *= 0.05;
     else w *= 2.8;
   }
   if (arch.id === 'rival_probe' && rivalIntensity >= 55) w *= 0.45;
@@ -283,6 +288,7 @@ export function pickSituation(
   const recent = recentArchetypes(state, 8);
 
   const pool = allArchetypes(pack).filter((a) => {
+    if (a.id === 'mid_season_checkin') return false; // solo por force
     if (!a.stages.includes(state.stageId)) return false;
     if (a.excludeNationTags?.some((t) => tags.has(t))) return false;
     if (a.roleTags?.length && !a.roleTags.includes(state.profile.roleId)) return false;
@@ -330,6 +336,51 @@ export function openSituation(pack: ContentPack, state: CareerState): CareerStat
   };
 }
 
+/** Fuerza un arquetipo concreto (beats de arco: mid-season, etc.). */
+export function openForcedArchetype(
+  state: CareerState,
+  archetypeId: string
+): CareerState {
+  if (state.endingId) return state;
+  const arch = SITUATION_ARCHETYPES.find((a) => a.id === archetypeId);
+  if (!arch) return { ...state, phase: 'event' };
+  // Ignora filtro de sede: el beat de arco te encuentra donde estés.
+  const flexible = { ...arch, venues: undefined };
+  const { instance, seed } = instantiateSituation(flexible, state, state.rngSeed);
+  return {
+    ...state,
+    rngSeed: seed,
+    currentEventId: instance.archetypeId,
+    currentSituation: instance,
+    phase: 'event',
+    lastNotice: state.lastNotice,
+    ticker: [`ARCO · ${instance.title}`, ...state.ticker],
+  };
+}
+
+/**
+ * Mitad de split: abre el check-in del staff si corresponde.
+ * Devuelve null si no hay beat pendiente.
+ */
+export function tryOpenMidSeasonBeat(state: CareerState): CareerState | null {
+  if (state.endingId) return null;
+  const key = `midSeason_${state.season}`;
+  const due =
+    (isMidSeasonDue(state) || !!state.flags.pendingMidSeason) && !state.flags[key];
+  if (!due) return null;
+  const marked: CareerState = {
+    ...state,
+    flags: {
+      ...state.flags,
+      [key]: 1,
+      pendingMidSeason: 0,
+    },
+    lastNotice: 'Mitad de split. El staff quiere hablar.',
+    ticker: ['MITAD DE SPLIT', ...state.ticker],
+  };
+  return openForcedArchetype(marked, 'mid_season_checkin');
+}
+
 const NPC_ACTION_ARCHETYPE: Record<
   Exclude<CareerState['npcStates'][RelationKey]['pendingAction'], null>,
   Partial<Record<RelationKey, string>>
@@ -349,13 +400,27 @@ export function openNpcActionSituation(
 ): CareerState | null {
   const action = state.npcStates[kind].pendingAction;
   if (!action || action === 'avoid') return null;
-  const archetypeId = NPC_ACTION_ARCHETYPE[action][kind];
-  const arch = SITUATION_ARCHETYPES.find(
-    (candidate) =>
-      candidate.id === archetypeId &&
-      candidate.stages.includes(state.stageId) &&
-      (!candidate.venues?.length || candidate.venues.includes(state.venueId))
-  );
+  const archetypeId =
+    kind === 'rival'
+      ? rivalArchetypeForAction(state, action)
+      : NPC_ACTION_ARCHETYPE[action][kind];
+  if (!archetypeId) return null;
+  const findArch = (id: string) =>
+    SITUATION_ARCHETYPES.find(
+      (candidate) =>
+        candidate.id === id &&
+        candidate.stages.includes(state.stageId) &&
+        (!candidate.venues?.length || candidate.venues.includes(state.venueId))
+    );
+  let arch = findArch(archetypeId);
+  // Academy aún no tiene showdown: baja a customs/probe si hace falta.
+  if (!arch && kind === 'rival') {
+    for (const id of ['rival_customs', 'rival_probe'] as const) {
+      if (id === archetypeId) continue;
+      arch = findArch(id);
+      if (arch) break;
+    }
+  }
   if (!arch) return null;
 
   const materialized = instantiateSituation(
@@ -394,13 +459,42 @@ export function applySituationChoice(
 
   let next = state;
   if (sit.threadKind) {
-    const delta =
+    let delta =
       choiceId.includes('walk') || choiceId.includes('ignore') || choiceId.includes('deflect')
         ? 12
         : choiceId.includes('mediate') || choiceId.includes('apologize')
           ? -15
           : 5;
-    next = upsertThread(next, sit.threadKind, sit.actors, delta, { lastChoice: choiceId });
+    const threadFlags: NarrativeThread['flags'] = { lastChoice: choiceId };
+
+    if (sit.threadKind === 'rivalry') {
+      if (choiceId === 'accept_customs' || choiceId === 'challenge') {
+        delta = 18;
+        threadFlags.customsAccepted = 1;
+        next = {
+          ...next,
+          flags: { ...next.flags, customsAccepted: 1 },
+          ticker: ['CUSTOMS · pactados con el rival', ...next.ticker].slice(0, 8),
+        };
+      } else if (choiceId === 'public_refuse') {
+        threadFlags.customsRefused = 1;
+      } else if (
+        sit.archetypeId === 'rival_showdown' &&
+        (choiceId === 'stare_down' || choiceId === 'clap_back')
+      ) {
+        delta = 12;
+        next = {
+          ...next,
+          flags: { ...next.flags, rivalShowdownPending: 1 },
+          ticker: [
+            `SHOWDOWN · próxima serie vs ${next.roster.rival.name}`,
+            ...next.ticker,
+          ].slice(0, 8),
+        };
+      }
+    }
+
+    next = upsertThread(next, sit.threadKind, sit.actors, delta, threadFlags);
   }
 
   return { state: next, choice };

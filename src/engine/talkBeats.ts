@@ -149,6 +149,113 @@ const BEATS: TalkBeat[] = [
   },
 
   {
+    id: 'coach_academy_board',
+    kind: 'coach',
+    venues: ['academy'],
+    line: 'Marek señala la pizarra: "Antes del scrim, una decisión. ¿Qué priorizamos?"',
+    weight: 11,
+    choices: [
+      {
+        id: 'coach_ac_early',
+        label: 'Early y visión',
+        hint: '+visión · ordená',
+        verb: 'sort',
+        sortItems: ['Wards', 'Path', 'Prio', 'Dive'],
+        effect: { stats: { gameSense: 4, teamwork: 2 }, relations: { coach: 4 } },
+        outcome: 'Plan de early en el board. Cero poesía.',
+      },
+      {
+        id: 'coach_ac_fight',
+        label: 'Fight discipline',
+        hint: '+team · reacción',
+        verb: 'react',
+        effect: { stats: { teamwork: 4, mentality: 1 }, relations: { coach: 3, duo: 2 } },
+        outcome: 'Focus targets claros. El dúo asiente.',
+        failOutcome: 'Te trabás en el call. Marek reescribe solo.',
+        failEffect: { stats: { mentality: -1 }, relations: { coach: 1 } },
+      },
+      {
+        id: 'coach_ac_you',
+        label: 'Mi lane primero',
+        hint: '+mecánicas · −coach',
+        effect: { stats: { mechanics: 3 }, relations: { coach: -2 } },
+        outcome: 'Pedís foco personal. Queda anotado.',
+      },
+    ],
+  },
+  {
+    id: 'duo_academy_warmup',
+    kind: 'duo',
+    venues: ['academy'],
+    line: 'Duo en la booth: "Warmup rápido o vamos frios al scrim?"',
+    weight: 10,
+    choices: [
+      {
+        id: 'duo_ac_warmup',
+        label: 'Warmup de aim',
+        hint: '+mecánicas · timing',
+        verb: 'timing',
+        effect: { stats: { mechanics: 3 }, relations: { duo: 3 } },
+        outcome: 'Diez minutos. Manos calientes.',
+        failOutcome: 'Tilt de warmup. Mejor ni haber tocado.',
+        failEffect: { stats: { mentality: -2 }, relations: { duo: 1 } },
+      },
+      {
+        id: 'duo_ac_sync',
+        label: 'Sync de signals',
+        hint: '+team · reacción',
+        verb: 'react',
+        effect: { stats: { teamwork: 4 }, relations: { duo: 4 } },
+        outcome: 'Dos pings, un idioma. Listos.',
+        failOutcome: 'Se pisan los calls. Ríen igual.',
+        failEffect: { stats: { teamwork: 1, mentality: -1 }, relations: { duo: 2 } },
+      },
+      {
+        id: 'duo_ac_chill',
+        label: 'Agua y silencio',
+        hint: '+mente · fatiga baja',
+        effect: { stats: { mentality: 3 }, relations: { duo: 2 } },
+        outcome: 'Respiran. El scrim puede esperar dos minutos.',
+      },
+    ],
+  },
+  {
+    id: 'duo_gym_spot',
+    kind: 'duo',
+    venues: ['gym'],
+    line: 'Duo te encuentra en el gym: "¿Lab de cuerpo o viniste a escapar del VOD?"',
+    weight: 7,
+    choices: [
+      {
+        id: 'duo_gym_together',
+        label: 'Circuito juntos',
+        hint: '+dúo · reacción',
+        verb: 'react',
+        effect: { stats: { mentality: 2 }, relations: { duo: 4 } },
+        outcome: 'Sudor compartido. Química de verdad.',
+        failOutcome: 'Competís de más. Queda chiste amargo.',
+        failEffect: { stats: { mentality: -1 }, relations: { duo: 1 } },
+      },
+      {
+        id: 'duo_gym_honest',
+        label: 'Confesar escape',
+        hint: '+mente · +dúo',
+        effect: { stats: { mentality: 4 }, relations: { duo: 3 } },
+        outcome: 'Lo dicen en voz baja. El VOD puede esperar.',
+      },
+      {
+        id: 'duo_gym_race',
+        label: 'Race amistosa',
+        hint: '+mecánicas · timing',
+        verb: 'timing',
+        effect: { stats: { mechanics: 2, reputation: 1 }, relations: { duo: 2 } },
+        outcome: 'Gana quien gana. Amistad intacta.',
+        failOutcome: 'Perdés feo. El dúo te debe un café.',
+        failEffect: { stats: { mentality: -1 }, relations: { duo: 3 } },
+      },
+    ],
+  },
+  {
     id: 'coach_review',
     kind: 'coach',
     line: 'Marek: "Tengo tres minutos. Decime qué querés escuchar."',
@@ -245,7 +352,7 @@ const BEATS: TalkBeat[] = [
         hint: '+mecánicas · timing',
         verb: 'timing',
         effect: { stats: { mechanics: 3, reputation: 1 }, relations: { rival: 5 } },
-        outcome: 'Queda pactado. El timeline ya vibra.',
+        outcome: 'Customs pactados. Cuando el heat suba, viene el cara a cara.',
         failOutcome: 'Pedís customs y tu voz tiembla. El rival sonríe.',
         failEffect: { stats: { reputation: 1, mentality: -1 }, relations: { rival: 2 } },
       },
@@ -297,7 +404,7 @@ const BEATS: TalkBeat[] = [
         hint: '+mecánicas · timing · escala rivalidad',
         verb: 'timing',
         effect: { stats: { mechanics: 4, reputation: 2 }, relations: { rival: 5 } },
-        outcome: 'Customs. El hilo de rivalidad sube otro escalón.',
+        outcome: 'Customs. El hilo arde — falta el showdown en arena.',
         failOutcome: 'Pedís timeout. El rival se ríe en tu cara.',
         failEffect: { stats: { mentality: -2, reputation: -1 }, relations: { rival: 2 } },
       },
@@ -317,6 +424,75 @@ const BEATS: TalkBeat[] = [
         outcome: 'El café calla. Guerra pública.',
         failOutcome: 'Tu clapback sale flojo. Risas.',
         failEffect: { stats: { reputation: -2 }, relations: { rival: 1 } },
+      },
+    ],
+  },
+  {
+    id: 'rival_gym_rack',
+    kind: 'rival',
+    venues: ['gym'],
+    line: 'Rival en el rack de al lado: "¿Forma o ego? Acá se ve todo."',
+    weight: 9,
+    choices: [
+      {
+        id: 'rival_gym_spot',
+        label: 'Pedirle spot',
+        hint: '+rival · timing',
+        verb: 'timing',
+        effect: { stats: { mechanics: 2, mentality: 1 }, relations: { rival: 4 } },
+        outcome: 'Rep limpia. Guerra de ego pausada un minuto.',
+        failOutcome: 'Fallás el timing. El rival no dice nada. Peor.',
+        failEffect: { stats: { mentality: -2 }, relations: { rival: 1 } },
+      },
+      {
+        id: 'rival_gym_race',
+        label: 'Race de acondicionamiento',
+        hint: '+forma · reacción',
+        verb: 'react',
+        effect: { stats: { mechanics: 3 }, relations: { rival: 3 } },
+        outcome: 'Sudor y respeto. El scoreboard mental queda 1–1.',
+        failOutcome: 'Te deja atrás. Sonríe sin abrir la boca.',
+        failEffect: { stats: { mentality: -1, reputation: 1 }, relations: { rival: 2 } },
+      },
+      {
+        id: 'rival_gym_ignore',
+        label: 'Auriculares full',
+        hint: '+foco · frío',
+        effect: { stats: { mentality: 2 }, relations: { rival: -2 } },
+        outcome: 'Mute al mundo. El rival anota el snub.',
+      },
+    ],
+  },
+  {
+    id: 'rival_arena_tunnel',
+    kind: 'rival',
+    venues: ['arena'],
+    line: 'En el túnel de la arena, el rival pasa cerca: "Hoy no hay customs. Hay scoreboard."',
+    weight: 8,
+    choices: [
+      {
+        id: 'rival_arena_nod',
+        label: 'Asentir y seguir',
+        hint: '+mente · respeto',
+        effect: { stats: { mentality: 3 }, relations: { rival: 2 } },
+        outcome: 'Cero palabras. Máxima presión.',
+      },
+      {
+        id: 'rival_arena_clap',
+        label: 'Clapback corto',
+        hint: '+rep · timing',
+        verb: 'timing',
+        effect: { stats: { reputation: 3, mentality: -1 }, relations: { rival: 4 } },
+        outcome: 'Una línea. El staff mira el reloj.',
+        failOutcome: 'Sale flojo. El rival ni se frena.',
+        failEffect: { stats: { reputation: -1 }, relations: { rival: 1 } },
+      },
+      {
+        id: 'rival_arena_coach',
+        label: 'Buscar a Marek',
+        hint: '+coach · −rival',
+        effect: { relations: { coach: 3, rival: -2 }, stats: { mentality: 1 } },
+        outcome: 'El coach te saca del túnel. Prioridad clara.',
       },
     ],
   },
@@ -534,12 +710,18 @@ export function applyTalkChoice(
   // Hablar con el rival enciende / escala el hilo de rivalidad.
   if (session.kind === 'rival') {
     const delta = success ? 14 : 8;
+    const acceptedCustoms =
+      success && (choiceId === 'rival_challenge' || choiceId === 'rival_heat_yes');
     next = upsertThread(next, 'rivalry', ['rival'], delta, {
       lastTalkBeat: session.beatId,
+      ...(acceptedCustoms ? { customsAccepted: 1 } : {}),
     });
     const rival = next.npcStates.rival;
     next = {
       ...next,
+      flags: acceptedCustoms
+        ? { ...next.flags, customsAccepted: 1 }
+        : next.flags,
       npcStates: {
         ...next.npcStates,
         rival: {
@@ -549,7 +731,11 @@ export function applyTalkChoice(
         },
       },
       ticker: [
-        success ? 'RIVALIDAD · el hilo sube' : 'RIVALIDAD · roce sin cierre',
+        acceptedCustoms
+          ? 'CUSTOMS · pactados con el rival'
+          : success
+            ? 'RIVALIDAD · el hilo sube'
+            : 'RIVALIDAD · roce sin cierre',
         ...next.ticker,
       ].slice(0, 8),
     };

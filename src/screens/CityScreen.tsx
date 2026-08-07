@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { availableVenues, getVenue, VENUES } from '../engine/venues';
+import { canTravel, travelFare } from '../engine/economy';
 import type { RelationKey, VenueId } from '../engine/types';
 import { roomBg } from '../room/roomArt';
 import { useGameStore } from '../store/gameStore';
@@ -39,6 +40,23 @@ const PATH: Array<[VenueId, VenueId]> = [
   ['academy', 'arena'],
   ['home', 'cafe'],
 ];
+
+/** Empty state con CTA suave según sede. */
+function emptyNpcHint(venueId: VenueId): string {
+  switch (venueId) {
+    case 'gym':
+      return 'Nadie del círculo acá. El rival suele aparecer entre series — o andá al café.';
+    case 'cafe':
+      return 'Mesa vacía por ahora. Duo, rival o manager rotan por acá a lo largo del día.';
+    case 'academy':
+      return 'Booths quietas. Coach y duo suelen estar en scrim/VOD — volvé en otro bloque.';
+    case 'arena':
+      return 'Túnel vacío. En match day el coach y el rival aparecen.';
+    case 'home':
+    default:
+      return 'Pieza sola. El dúo a veces pasa; si no, probá el café o el gym.';
+  }
+}
 
 function PathLine({
   a,
@@ -128,7 +146,8 @@ export function CityScreen() {
           <Text style={styles.kicker}>MAPA · {weather.toUpperCase()}</Text>
           <Text style={styles.title}>La ciudad</Text>
           <Text style={styles.blurb}>
-            Estás en {here.label}. Tocá una sede del recorrido para viajar (+2 fatiga).
+            Estás en {here.label} · ${career.cash}. Viajar cuesta plata (+2 fatiga). Casa es
+            gratis.
           </Text>
 
           <View style={styles.map}>
@@ -162,14 +181,20 @@ export function CityScreen() {
               const on = v.id === career.venueId;
               const art = roomBg(v.id);
               const who = unlocked ? npcsAt(v.id) : [];
+              const fare = travelFare(v.id);
+              const trip = canTravel(career, v.id);
+              const broke = !on && unlocked && !trip.ok;
 
               return (
                 <Pressable
                   key={v.id}
                   disabled={!unlocked}
                   onPress={() => {
-                    if (!on && unlocked) travel(v.id);
-                    setScreen('weekHub');
+                    if (on || !unlocked) {
+                      setScreen('weekHub');
+                      return;
+                    }
+                    travel(v.id);
                   }}
                   style={[
                     styles.node,
@@ -179,10 +204,15 @@ export function CityScreen() {
                     },
                     on && styles.nodeOn,
                     !unlocked && styles.nodeLocked,
+                    broke && styles.nodeBroke,
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={
-                    unlocked ? `Viajar a ${v.label}` : `${v.label} bloqueado`
+                    unlocked
+                      ? broke
+                        ? `${v.label}: sin fondos ($${fare})`
+                        : `Viajar a ${v.label}${fare ? ` $${fare}` : ''}`
+                      : `${v.label} bloqueado`
                   }
                 >
                   {on ? <YouAreHere /> : null}
@@ -203,18 +233,16 @@ export function CityScreen() {
                       {v.label}
                     </Text>
                   </View>
+                  {!on && unlocked ? (
+                    <Text style={[styles.fare, broke && styles.fareBroke]} numberOfLines={1}>
+                      {broke ? `$${fare} · seco` : fare > 0 ? `$${fare}` : 'gratis'}
+                    </Text>
+                  ) : null}
                   {who.length > 0 ? (
                     <Text style={styles.who} numberOfLines={1}>
                       {who.join(' · ')}
                     </Text>
                   ) : null}
-                  {!unlocked ? (
-                    <Text style={styles.lock}>Bloqueado</Text>
-                  ) : !on ? (
-                    <Text style={styles.fatigue}>+2 fatiga</Text>
-                  ) : (
-                    <Text style={styles.hereLabel}>ACÁ</Text>
-                  )}
                 </Pressable>
               );
             })}
@@ -241,9 +269,20 @@ export function CityScreen() {
                 Acá ahora: {npcsAt(career.venueId).join(', ')}
               </Text>
             ) : (
-              <Text style={styles.detailActs}>Nadie del círculo en esta sede ahora.</Text>
+              <Text style={styles.detailActs}>
+                {emptyNpcHint(career.venueId)}
+              </Text>
             )}
           </Panel>
+
+          {career.lastNotice &&
+          (career.lastNotice.includes('viajar') ||
+            career.lastNotice.includes('SIN FONDOS') ||
+            career.lastNotice.includes('Necesitás $')) ? (
+            <Panel tone="danger" label="Sin fondos" style={styles.detail}>
+              <Text style={styles.detailBlurb}>{career.lastNotice}</Text>
+            </Panel>
+          ) : null}
 
           <Panel tone="muted" label="Ruta">
             <Text style={styles.tip}>
@@ -326,6 +365,14 @@ const styles = StyleSheet.create({
   },
   nodeOn: { zIndex: 8 },
   nodeLocked: { opacity: 0.45 },
+  nodeBroke: { opacity: 0.75 },
+  fare: {
+    color: colors.gold,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    textAlign: 'center',
+  },
+  fareBroke: { color: colors.danger },
   artBox: {
     width: 88,
     height: 64,

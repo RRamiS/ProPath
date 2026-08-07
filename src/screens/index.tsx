@@ -25,6 +25,7 @@ import {
 import { EffectChips } from '../ui/effects';
 import { Icon, type IconName } from '../ui/icons';
 import { FadeSlide } from '../ui/motion';
+import { HowToSheet } from '../ui/HowToSheet';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
 import { CareerHud } from '../ui/CareerHud';
 import { NationBadge } from '../ui/NationBadge';
@@ -106,16 +107,23 @@ export function HomeScreen() {
   const pack = useGameStore((s) => s.pack);
   const saveSummary = useGameStore((s) => s.saveSummary);
   const continueCareer = useGameStore((s) => s.continueCareer);
+  const deleteSave = useGameStore((s) => s.deleteSave);
+  const career = useGameStore((s) => s.career);
+  const replayHowTo = useGameStore((s) => s.replayHowTo);
   const [muted, setMutedUi] = useState(isMuted);
+  const [howtoOpen, setHowtoOpen] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
   const stageName = saveSummary
     ? (pack.stages.find((s) => s.id === saveSummary.stageId)?.name ?? saveSummary.stageId)
     : null;
+  const hasSave = !!saveSummary;
 
   useEffect(() => subscribeMute(setMutedUi), []);
 
   return (
     <View style={styles.root}>
       <Atmosphere landing />
+      <HowToSheet visible={howtoOpen} onClose={() => setHowtoOpen(false)} />
       <SafeAreaView style={styles.safe}>
         <ScrollView
           contentContainerStyle={styles.homeScroll}
@@ -177,6 +185,13 @@ export function HomeScreen() {
               title="Gente que se acuerda"
               copy="Coach, duo, rival y manager cambian los eventos según cómo los tratás."
             />
+            <FeatureRow
+              index="04"
+              icon="match"
+              tone="violet"
+              title="Mapa de sedes"
+              copy="Pieza, gym, café, academia, arena. Cada lugar abre acciones y gente distinta."
+            />
           </FadeSlide>
 
           <FadeSlide delay={280} style={styles.ctaBlock}>
@@ -210,13 +225,75 @@ export function HomeScreen() {
               El rol que elijas define tu carrera — y cambiarlo tiene precio. El progreso se
               guarda solo.
             </Text>
-            <Pressable
-              onPress={() => void setMuted(!muted)}
-              style={styles.muteBtn}
-              hitSlop={8}
-            >
-              <Text style={styles.muteText}>{muted ? 'Sonido: off' : 'Sonido: on'}</Text>
-            </Pressable>
+
+            <View style={styles.playtestBox}>
+              <Text style={styles.playtestLabel}>PLAYTEST</Text>
+              <View style={styles.playtestRow}>
+                <Pressable
+                  onPress={() => void setMuted(!muted)}
+                  style={styles.playtestBtn}
+                  hitSlop={6}
+                >
+                  <Text style={styles.playtestBtnText}>
+                    {muted ? 'Sonido: off' : 'Sonido: on'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setHowtoOpen(true)}
+                  style={styles.playtestBtn}
+                  hitSlop={6}
+                >
+                  <Text style={styles.playtestBtnText}>Cómo se juega</Text>
+                </Pressable>
+              </View>
+              {career && !career.endingId ? (
+                <Pressable
+                  onPress={() => replayHowTo()}
+                  style={styles.playtestBtnWide}
+                  hitSlop={6}
+                >
+                  <Text style={styles.playtestBtnText}>Repetir coach en la sede</Text>
+                </Pressable>
+              ) : null}
+              {hasSave ? (
+                confirmWipe ? (
+                  <View style={styles.wipeConfirm}>
+                    <Text style={styles.wipeWarn}>
+                      ¿Borrar la partida de {saveSummary?.name}? No se puede deshacer.
+                    </Text>
+                    <View style={styles.playtestRow}>
+                      <Pressable
+                        onPress={() => setConfirmWipe(false)}
+                        style={styles.playtestBtn}
+                      >
+                        <Text style={styles.playtestBtnText}>Cancelar</Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setConfirmWipe(false);
+                          void deleteSave();
+                        }}
+                        style={[styles.playtestBtn, styles.wipeBtn]}
+                      >
+                        <Text style={[styles.playtestBtnText, styles.wipeBtnText]}>
+                          Sí, borrar
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setConfirmWipe(true)}
+                    style={styles.playtestBtnWide}
+                    hitSlop={6}
+                  >
+                    <Text style={[styles.playtestBtnText, styles.wipeLink]}>
+                      Borrar partida guardada
+                    </Text>
+                  </Pressable>
+                )
+              ) : null}
+            </View>
           </FadeSlide>
         </ScrollView>
       </SafeAreaView>
@@ -647,20 +724,56 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
   },
-  muteBtn: {
-    alignSelf: 'center',
-    marginTop: 14,
+  playtestBox: {
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: colors.line,
+    gap: 10,
+  },
+  playtestLabel: {
+    color: colors.faint,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    textAlign: 'center',
+  },
+  playtestRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  playtestBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: colors.line,
   },
-  muteText: {
+  playtestBtnWide: {
+    alignSelf: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  playtestBtnText: {
     color: colors.muted,
     fontFamily: fonts.bodyMedium,
     fontSize: 11,
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
+  wipeConfirm: { gap: 10 },
+  wipeWarn: {
+    color: colors.danger,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  wipeBtn: { borderColor: colors.danger },
+  wipeBtnText: { color: colors.danger },
+  wipeLink: { color: colors.danger },
   overwriteWarn: {
     color: colors.danger,
     fontSize: 12,

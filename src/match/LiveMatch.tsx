@@ -15,7 +15,7 @@ import {
   feedLine,
   MATCH_PHASE_LABELS,
   momentumWinChance,
-  pickOpponent,
+  pickMatchOpponent,
   type MatchChoice,
 } from './simulate';
 import type { MatchFactor, MatchResult } from '../engine/types';
@@ -282,18 +282,22 @@ export function LiveMatchScreen() {
   const roleId = career?.profile.roleId ?? 'mid';
   const beats = useMemo(() => buildMatchBeats(roleId), [roleId]);
 
-  const opponentSeed = career?.rngSeed ?? 0;
-  const stageId = career?.stageId ?? 'soloq';
-  const liveOpponent = useMemo(
-    () => pickOpponent(opponentSeed, stageId).name,
+  const livePick = useMemo(
+    () => (career ? pickMatchOpponent(career) : { name: 'Rival', showdown: false }),
     // El rival se fija al entrar al partido y no cambia entre fases.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stageId]
+    [career?.stageId, career?.flags.rivalShowdownPending, career?.roster.rival.name]
   );
+  const liveOpponent = livePick.name;
+  const isShowdownMatch = livePick.showdown;
 
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [choices, setChoices] = useState<string[]>([]);
-  const [feed, setFeed] = useState<string[]>(['Cámaras encendidas · draft en curso']);
+  const [feed, setFeed] = useState<string[]>(() =>
+    livePick.showdown
+      ? [`SHOWDOWN vs ${livePick.name}`, 'Cámaras encendidas · draft en curso']
+      : ['Cámaras encendidas · draft en curso']
+  );
   const [momValue, setMomValue] = useState(50);
   const [skill, setSkill] = useState<MatchChoice | null>(null);
   const [flash, setFlash] = useState<'up' | 'down' | null>(null);
@@ -366,6 +370,12 @@ export function LiveMatchScreen() {
               tone="danger"
             />
           </View>
+
+          {isShowdownMatch && !showingResult ? (
+            <Text style={styles.showdownBanner}>
+              SHOWDOWN · vs {liveOpponent} · esto es personal
+            </Text>
+          ) : null}
 
           {showingResult ? (
             <MatchResultView
@@ -612,6 +622,15 @@ const styles = StyleSheet.create({
   },
 
   stepperWrap: { marginBottom: 16 },
+
+  showdownBanner: {
+    color: colors.danger,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
 
   feed: {
     backgroundColor: colors.bgSunken,

@@ -6,16 +6,25 @@ import {
   roleMasteryOf,
   roleSwitchCost,
 } from '../engine/role';
-import { AGE_HARD, AGE_SOFT } from '../engine/season';
+import {
+  AGE_HARD,
+  AGE_SOFT,
+  seasonGradeLabel,
+  seasonOfferChoices,
+  seasonReviewBlurb,
+  type SeasonGrade,
+  type SeasonOfferId,
+} from '../engine/season';
 import { useGameStore } from '../store/gameStore';
 import { Button, Panel, PressCard, Tag } from '../ui/components';
 import { MobaBackdrop } from '../ui/MobaBackdrop';
-import { colors, fonts, maxContentWidth, space } from '../ui/theme';
+import { colors, fonts, maxContentWidth, space, tones } from '../ui/theme';
 
 export function SeasonBreakScreen() {
   const pack = useGameStore((s) => s.pack);
   const career = useGameStore((s) => s.career);
   const continueNextSeason = useGameStore((s) => s.continueNextSeason);
+  const resolveSeasonOfferChoice = useGameStore((s) => s.resolveSeasonOfferChoice);
   const retireCareer = useGameStore((s) => s.retireCareer);
   const switchRole = useGameStore((s) => s.switchRole);
   const [pickingRole, setPickingRole] = useState(false);
@@ -28,6 +37,15 @@ export function SeasonBreakScreen() {
   const cost = roleSwitchCost(career);
   const currentRole = pack.roles.find((r) => r.id === career.profile.roleId);
   const mastery = roleMasteryOf(career);
+  const wins = Number(career.flags.lastSeasonWins ?? 0);
+  const losses = Number(career.flags.lastSeasonLosses ?? 0);
+  const grade = (career.flags.seasonReviewGrade as SeasonGrade) || 'ok';
+  const offerPending = !!career.flags.seasonOfferPending;
+  const offers = seasonOfferChoices(grade);
+
+  const onOffer = (id: SeasonOfferId) => {
+    resolveSeasonOfferChoice(id);
+  };
 
   return (
     <View style={styles.root}>
@@ -42,8 +60,8 @@ export function SeasonBreakScreen() {
 
           <Panel tone="accent" label="Resumen" style={styles.panel}>
             <Text style={styles.line}>
-              Temporada: {Number(career.flags.lastSeasonWins ?? 0)}V–
-              {Number(career.flags.lastSeasonLosses ?? 0)}D
+              Temporada: {wins}V–{losses}D · review{' '}
+              <Text style={styles.grade}>{seasonGradeLabel(grade)}</Text>
             </Text>
             <Text style={styles.line}>
               Carrera: {career.wins}V–{career.losses}D · {career.turn} semanas
@@ -51,6 +69,32 @@ export function SeasonBreakScreen() {
             <Text style={styles.line}>
               Rol: {currentRole?.name ?? career.profile.roleId.toUpperCase()} · maestría {mastery}
             </Text>
+          </Panel>
+
+          <Panel
+            tone={grade === 'hot' ? 'gold' : grade === 'cold' ? 'danger' : 'warn'}
+            glow
+            label="Review del staff"
+            style={styles.panel}
+          >
+            <Text style={styles.pressure}>{seasonReviewBlurb(grade, wins, losses)}</Text>
+            {offerPending ? (
+              <View style={styles.offerList}>
+                {offers.map((o) => (
+                  <PressCard
+                    key={o.id}
+                    tone={grade === 'hot' ? 'gold' : grade === 'cold' ? 'danger' : 'accent'}
+                    onPress={() => onOffer(o.id)}
+                    style={styles.offerCard}
+                  >
+                    <Text style={styles.offerLabel}>{o.label}</Text>
+                    <Text style={styles.offerBlurb}>{o.blurb}</Text>
+                  </PressCard>
+                ))}
+              </View>
+            ) : career.lastNotice ? (
+              <Text style={styles.notice}>{career.lastNotice}</Text>
+            ) : null}
           </Panel>
 
           <Panel tone="gold" label="Carril" style={styles.panel}>
@@ -115,7 +159,15 @@ export function SeasonBreakScreen() {
             </Panel>
           ) : null}
 
-          <Button label={`Seguir · Temporada ${career.season}`} onPress={continueNextSeason} />
+          <Button
+            label={
+              offerPending
+                ? 'Elegí la oferta del staff primero'
+                : `Seguir · Temporada ${career.season}`
+            }
+            onPress={continueNextSeason}
+            disabled={offerPending}
+          />
           <Button
             label="Retirarme"
             variant="ghost"
@@ -151,7 +203,20 @@ const styles = StyleSheet.create({
   sub: { color: colors.muted, fontFamily: fonts.bodySemi, fontSize: 14 },
   panel: { gap: 8 },
   line: { color: colors.text, fontFamily: fonts.body, fontSize: 14 },
+  grade: { color: tones.gold.fg, fontFamily: fonts.bodyBold },
   pressure: { color: colors.muted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19 },
+  offerList: { gap: 8, marginTop: 6 },
+  offerCard: { gap: 4 },
+  offerLabel: {
+    color: colors.text,
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+  },
+  offerBlurb: {
+    color: colors.gold,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+  },
   roleBtn: { marginTop: 4 },
   roleList: { gap: 8, marginTop: 4 },
   rolePick: { gap: 4 },

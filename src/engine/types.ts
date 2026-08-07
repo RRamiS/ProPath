@@ -92,6 +92,9 @@ export interface ChoiceEffect {
   setStage?: string;
   ending?: string;
   relations?: Partial<Relations>;
+  /** Deltas opcionales de forma / fatiga (storylets de arco). */
+  form?: number;
+  fatigue?: number;
 }
 
 export interface Choice {

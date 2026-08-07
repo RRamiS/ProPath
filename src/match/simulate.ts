@@ -1,4 +1,7 @@
 import { applyStatDelta, nextRng } from '../engine/createCareer';
+import { setupBonuses } from '../engine/economy';
+import { upsertThread } from '../engine/memory';
+import { isShowdownPending } from '../engine/rivalry';
 import { relationBonuses } from '../engine/relations';
 import { agePressure } from '../engine/season';
 import { esportsPack } from '../content/esports/pack';
@@ -61,6 +64,23 @@ export function pickOpponent(seed: number, stageId: string): { name: string; see
   const r = nextRng(seed + stageId.length * 17);
   const name = OPPONENTS[Math.floor(r.value * OPPONENTS.length)]!;
   return { name, seed: r.seed };
+}
+
+/** Rival de roster si hay showdown pendiente; si no, pool genérico. */
+export function pickMatchOpponent(state: CareerState): {
+  name: string;
+  seed: number;
+  showdown: boolean;
+} {
+  if (isShowdownPending(state)) {
+    return {
+      name: state.roster.rival.name,
+      seed: state.rngSeed,
+      showdown: true,
+    };
+  }
+  const picked = pickOpponent(state.rngSeed, state.stageId);
+  return { ...picked, showdown: false };
 }
 
 const ROLE_EARLY: Record<string, string> = {
@@ -206,9 +226,16 @@ export function resolveMatch(
   // Un poco más duros: si no laburás la semana, el “siempre gano” se corta.
   add('Nivel del rival', -(0.55 + stagePenalty + seasonPressure));
 
+  const showdown =
+    isShowdownPending(state) && opponent === state.roster.rival.name;
   const rivalHeat =
     state.activeThreads.find((t) => t.kind === 'rivalry')?.intensity ?? 0;
-  if (rivalHeat >= 30) {
+  if (showdown) {
+    add('Showdown personal', -0.45);
+    if (rivalHeat >= 30) {
+      add('Rivalidad', -((rivalHeat / 100) * 0.45));
+    }
+  } else if (rivalHeat >= 30) {
     // Heat 30→100 ≈ −0.18…−0.60; showdown (≥70) suma un poco más.
     add('Rivalidad', -((rivalHeat / 100) * 0.6 + (rivalHeat >= 70 ? 0.15 : 0)));
   } else if (state.relations.rival >= 55) {
@@ -216,6 +243,9 @@ export function resolveMatch(
   }
   if (state.form < 40) add('Fuera de ritmo', -0.35);
   if (state.fatigue > 75) add('Cuerpo quemado', -0.4);
+
+  const setup = setupBonuses(state);
+  if (setup.matchEdge) add('Setup de pieza', setup.matchEdge);
 
   const noise = (roll() - 0.5) * 1.6;
   add('Varianza del día', noise);
@@ -228,6 +258,9 @@ export function resolveMatch(
   const assists = Math.max(0, Math.round(4 + (state.stats.teamwork ?? 0) / 20 + roll() * 3));
   const mvp = won && kills + assists >= deaths * 2 && roll() > 0.45;
 
+  if (showdown) {
+    highlights.push(won ? 'Showdown cerrado' : 'Showdown perdido — debe revancha');
+  }
   if (won) highlights.push('Victoria en el scoreboard');
   else highlights.push('Derrota — review inevitable');
   if (mvp) highlights.push('MVP de la serie');
@@ -247,8 +280,10 @@ export function resolveMatch(
   };
 
   let stats = applyStatDelta(state.stats, {
-    reputation: won ? (mvp ? 10 : 6) + perks.repEdge : -3,
-    mentality: won ? 4 : -5,
+    reputation: won
+      ? (mvp ? 10 : 6) + perks.repEdge + (showdown ? 6 : 0)
+      : -3 - (showdown ? 2 : 0),
+    mentality: won ? 4 + (showdown ? 3 : 0) : -5 - (showdown ? 2 : 0),
     mechanics: mvp ? 3 : 1,
     teamwork: won ? 3 : -1,
   });
@@ -257,36 +292,78 @@ export function resolveMatch(
     ...state.relations,
     coach: clampRel(state.relations.coach + (won ? 3 : -2)),
     duo: clampRel(state.relations.duo + (won ? 4 : -1)),
-    rival: clampRel(state.relations.rival + (won ? 2 : 3)),
-    manager: clampRel(state.relations.manager + (won && mvp ? 4 : won ? 2 : 0)),
+    rival: clampRel(
+      state.relations.rival + (showdown ? (won ? 8 : 5) : won ? 2 : 3)
+    ),
+    manager: clampRel(
+      state.relations.manager + (won && mvp ? 4 : won ? 2 : 0) + (showdown && won ? 3 : 0)
+    ),
   };
 
-  const prize = won ? (mvp ? 55 : 35) : 8;
+  const prize = showdown
+    ? won
+      ? mvp
+        ? 90
+        : 70
+      : 12
+    : won
+      ? mvp
+        ? 55
+        : 35
+      : 8;
   let next: CareerState = {
     ...state,
     stats,
     relations,
     cash: state.cash + prize,
-    form: clampRel(state.form + (won ? 5 + perks.winSurge : -3 + perks.lossCushion)),
-    fatigue: clampRel(state.fatigue + 9 + age.matchFatigue),
+    form: clampRel(
+      state.form +
+        (won ? 5 + perks.winSurge + (showdown ? 4 : 0) : -3 + perks.lossCushion)
+    ),
+    fatigue: clampRel(state.fatigue + 9 + age.matchFatigue + (showdown ? 3 : 0)),
     lastMatch: result,
     wins: state.wins + (won ? 1 : 0),
     losses: state.losses + (won ? 0 : 1),
     seasonWins: state.seasonWins + (won ? 1 : 0),
     seasonLosses: state.seasonLosses + (won ? 0 : 1),
     rngSeed: seed,
-    lastNotice: won
-      ? mvp
-        ? `MVP vs ${opponent}. +$${prize}`
-        : `Win vs ${opponent}. ${result.scoreLine} · +$${prize}`
-      : `Loss vs ${opponent}. VOD duele. +$${prize}`,
+    flags: showdown
+      ? {
+          ...state.flags,
+          rivalShowdownPending: 0,
+          rivalShowdownWon: won ? 1 : 0,
+          rivalShowdownLost: won ? 0 : 1,
+        }
+      : state.flags,
+    lastNotice: showdown
+      ? won
+        ? `SHOWDOWN W vs ${opponent}. ${result.scoreLine} · +$${prize}`
+        : `SHOWDOWN L vs ${opponent}. Te debe la revancha. +$${prize}`
+      : won
+        ? mvp
+          ? `MVP vs ${opponent}. +$${prize}`
+          : `Win vs ${opponent}. ${result.scoreLine} · +$${prize}`
+        : `Loss vs ${opponent}. VOD duele. +$${prize}`,
     ticker: [
-      won ? `W vs ${opponent}` : `L vs ${opponent}`,
+      showdown
+        ? won
+          ? `SHOWDOWN W vs ${opponent}`
+          : `SHOWDOWN L vs ${opponent}`
+        : won
+          ? `W vs ${opponent}`
+          : `L vs ${opponent}`,
       `+$${prize}`,
       `${result.kills}/${result.deaths}/${result.assists}`,
       ...result.highlights,
     ],
   };
+
+  if (showdown) {
+    next = upsertThread(next, 'rivalry', ['rival'], won ? -50 : 10, {
+      showdownResolved: 1,
+      ...(won ? { showdownWon: 1 } : { showdownLost: 1 }),
+    });
+  }
 
   // Series on-role endurecen la identidad; MVP acelera.
   next = gainRoleMastery(next, won ? (mvp ? 7 : 4) : 2);

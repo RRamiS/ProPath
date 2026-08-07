@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { objectiveProgress, primaryObjective } from '../engine/objectives';
+import { rivalryHudLabel } from '../engine/rivalry';
 import { masteryTierLabel, roleMasteryOf } from '../engine/role';
 import type { CareerState, ContentPack } from '../engine/types';
 import { Gauge, SeasonStrip } from './components';
@@ -142,16 +143,16 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
           </View>
         ) : null}
 
-        {rivalry && rivalry.intensity >= 30 ? (
-          <Text style={styles.rivalChip} numberOfLines={1}>
-            RIVALIDAD {Math.round(rivalry.intensity)} ·{' '}
-            {rivalry.intensity >= 70
-              ? 'cara a cara'
-              : rivalry.intensity >= 40
-                ? 'customs en juego'
-                : 'te mide'}
-          </Text>
-        ) : null}
+        {(() => {
+          const label = rivalryHudLabel(career);
+          if (!label) return null;
+          const heat = rivalry ? Math.round(rivalry.intensity) : 0;
+          return (
+            <Text style={styles.rivalChip} numberOfLines={1}>
+              RIVALIDAD {heat || '·'} · {label}
+            </Text>
+          );
+        })()}
 
         <SeasonStrip turn={career.weekInSeason} maxTurns={career.maxTurns} tone={tone} />
 

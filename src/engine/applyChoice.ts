@@ -95,6 +95,8 @@ export function applyChoice(
     stats,
     flags,
     relations,
+    form: Math.max(0, Math.min(100, state.form + (effect.form ?? 0))),
+    fatigue: Math.max(0, Math.min(100, state.fatigue + (effect.fatigue ?? 0))),
     currentEventId: null,
     currentSituation: null,
     stageId: effect.setStage ?? state.stageId,

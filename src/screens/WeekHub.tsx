@@ -262,6 +262,7 @@ export function WeekHubScreen() {
   const retireCareer = useGameStore((s) => s.retireCareer);
   const dismissNotice = useGameStore((s) => s.dismissNotice);
   const completeOnboard = useGameStore((s) => s.completeOnboard);
+  const replayHowTo = useGameStore((s) => s.replayHowTo);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
@@ -332,6 +333,12 @@ export function WeekHubScreen() {
     completeOnboard();
   };
 
+  useEffect(() => {
+    if (Number(career?.flags.howtoReplay) === 1) {
+      setOnboardStep(0);
+    }
+  }, [career?.flags.howtoReplay]);
+
   const startActivityChoice = (slot: RoomSlot, variantId?: string) => {
     if (!variantId) {
       commit(slot);
@@ -364,7 +371,9 @@ export function WeekHubScreen() {
     bumpOnboard(3);
   };
 
-  const showOnboard = !career.flags.onboardDone && career.turn < 2;
+  const showOnboard =
+    Number(career.flags.howtoReplay) === 1 ||
+    (!career.flags.onboardDone && career.turn < 2);
 
   return (
     <View style={styles.root}>
@@ -504,6 +513,17 @@ export function WeekHubScreen() {
                 <Pressable style={styles.viewToggle} onPress={() => setScreen('shop')}>
                   <Text style={styles.viewToggleText}>SHOP</Text>
                 </Pressable>
+                {!showOnboard ? (
+                  <Pressable
+                    style={styles.viewToggle}
+                    onPress={() => {
+                      setOnboardStep(0);
+                      replayHowTo();
+                    }}
+                  >
+                    <Text style={styles.viewToggleText}>HOW</Text>
+                  </Pressable>
+                ) : null}
                 <Pressable style={styles.viewToggle} onPress={() => setShowMeta((v) => !v)}>
                   <Text style={styles.viewToggleText}>{showMeta ? 'MUNDO' : 'DATA'}</Text>
                 </Pressable>

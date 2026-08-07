@@ -7,6 +7,7 @@ import {
   agePressure,
   applyWeeklyCosts,
   closeSeason,
+  isMidSeasonDue,
   maybeForceRetire,
 } from './season';
 import { decayThreads } from './memory';
@@ -359,7 +360,7 @@ export function applyWeekActivity(
   let cashGain = 0;
   if (activityId === 'content') {
     const base = Math.round((boosted.money ?? 5) * 8 * perks.moneyMult);
-    cashGain = base;
+    cashGain = base + setup.contentCash;
     delete boosted.money;
   }
 
@@ -386,6 +387,12 @@ export function applyWeekActivity(
   let fatigueDelta = impact.fatigue + (variant?.effect.fatigue ?? 0);
   if (activityId === 'rest') {
     fatigueDelta = Math.round(fatigueDelta * age.restNerf) + setup.restFatigue;
+    form = clamp(form + setup.restForm);
+    // Sin plata: dormís mal (comida / estrés).
+    if (state.cash < 12) {
+      fatigueDelta = Math.round(fatigueDelta * 0.65);
+      form = clamp(form - 1);
+    }
     // El gym no es lo mismo que la cama: más recovery y un empujón de forma.
     if (state.venueId === 'gym') {
       fatigueDelta -= 8;
@@ -405,6 +412,9 @@ export function applyWeekActivity(
   const noticeFor = () => {
     if (variant) return cashGain ? `${variant.notice} +$${cashGain}` : variant.notice;
     if (cashGain) return `${activity.notice} +$${cashGain}`;
+    if (activityId === 'rest' && state.cash < 12) {
+      return 'Descanso flojo: sin plata se duerme mal. Contenido o un win pagan la semana.';
+    }
     if (activityId === 'rest' && state.venueId === 'gym') {
       return 'Gym: bajás más fatiga y subís forma. No es lo mismo que dormir en casa.';
     }
@@ -495,9 +505,19 @@ export function applyWeekActivity(
   if (!goMatch && stageOrder >= 2 && activityId === 'scrim') {
     goMatch = roll() < 0.2;
   }
+  // Tras el trash talk del showdown, la próxima serie es personal — no espera fixture.
+  if (!goMatch && Number(next.flags.rivalShowdownPending ?? 0) === 1 && stageOrder >= 2) {
+    goMatch = true;
+  }
 
   // La serie se juega aunque sea la última semana; el break viene después.
   if (goMatch) {
+    if (isMidSeasonDue(next)) {
+      next = {
+        ...next,
+        flags: { ...next.flags, pendingMidSeason: 1 },
+      };
+    }
     return {
       kind: 'match',
       state: { ...next, phase: 'match', lastActivity: 'match', venueId: 'arena' },

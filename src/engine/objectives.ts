@@ -12,6 +12,8 @@ export interface Objective {
   rewardLabel: string;
   /** Etapa mínima para que aparezca (orden numérico) */
   minStage?: number;
+  /** Si está definido, solo aparece cuando da true */
+  available?: (s: CareerState) => boolean;
 }
 
 const STAGE_ORDER = ['soloq', 'academy', 'challengers', 'tier1', 'worlds'];
@@ -26,6 +28,15 @@ function stageIndex(id: string) {
  * Es lo que la gente pide en los foros: saber para qué está jugando.
  */
 export const OBJECTIVES: Objective[] = [
+  {
+    id: 'obj_season_wins',
+    label: 'Ganá 3 series este split',
+    hint: 'El board mira el split, no la carrera entera.',
+    current: (s) => s.seasonWins,
+    target: 3,
+    reward: { reputation: 7, money: 5 },
+    rewardLabel: 'Rep +7 · Plata +5',
+  },
   {
     id: 'obj_first_wins',
     label: 'Ganá 2 series',
@@ -53,6 +64,20 @@ export const OBJECTIVES: Objective[] = [
     reward: { mentality: 6, reputation: 5 },
     rewardLabel: 'Mentalidad +6 · Rep +5',
     minStage: 1,
+  },
+  {
+    id: 'obj_rival_showdown',
+    label: 'Ganá el showdown vs tu rival',
+    hint: 'Customs primero. Después, la serie que importa.',
+    current: (s) => Number(s.flags.rivalShowdownWon ?? 0),
+    target: 1,
+    reward: { reputation: 10, mentality: 5, money: 8 },
+    rewardLabel: 'Rep +10 · Mentalidad +5 · Plata +8',
+    minStage: 1,
+    available: (s) =>
+      Number(s.flags.customsAccepted ?? 0) === 1 ||
+      Number(s.flags.rivalShowdownPending ?? 0) === 1 ||
+      Number(s.flags.rivalShowdownWon ?? 0) === 1,
   },
   {
     id: 'obj_coach_75',
@@ -90,7 +115,10 @@ export const OBJECTIVES: Objective[] = [
 export function activeObjectives(state: CareerState, limit = 2): Objective[] {
   const stage = stageIndex(state.stageId);
   return OBJECTIVES.filter(
-    (o) => (o.minStage ?? 0) <= stage && !state.claimedObjectives.includes(o.id)
+    (o) =>
+      (o.minStage ?? 0) <= stage &&
+      !state.claimedObjectives.includes(o.id) &&
+      (o.available?.(state) ?? true)
   ).slice(0, limit);
 }
 
@@ -113,6 +141,7 @@ export function claimObjectives(state: CareerState): {
     (o) =>
       (o.minStage ?? 0) <= stage &&
       !state.claimedObjectives.includes(o.id) &&
+      (o.available?.(state) ?? true) &&
       o.current(state) >= o.target
   );
 

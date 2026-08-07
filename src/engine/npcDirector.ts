@@ -20,7 +20,7 @@ const AGENDAS: Record<RelationKey, string[]> = {
 
 const HOME_VENUES: Record<RelationKey, VenueId[]> = {
   coach: ['academy', 'arena'],
-  duo: ['home', 'cafe', 'academy'],
+  duo: ['home', 'cafe', 'academy', 'gym'],
   rival: ['cafe', 'arena', 'gym'],
   manager: ['cafe', 'home'],
 };

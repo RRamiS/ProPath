@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { canAfford, hasVisual, ownsItem, SHOP_CATALOG, type ShopItem } from '../engine/economy';
+import { canAfford, hasVisual, ownsItem, SHOP_CATALOG, weeklyLivingCost, type ShopItem } from '../engine/economy';
 import { Image } from 'expo-image';
 import { IsoRoom } from '../room/IsoRoom';
 import { venueLayout } from '../room/layout';
@@ -81,6 +81,7 @@ export function ShopScreen() {
   if (!career) return null;
 
   const focus = preview ?? SHOP_CATALOG.find((i) => !ownsItem(career, i.id)) ?? SHOP_CATALOG[0]!;
+  const living = weeklyLivingCost(career);
   const upgrades = {
     monitor: hasVisual(career, 'monitor'),
     chair: hasVisual(career, 'chair'),
@@ -99,8 +100,9 @@ export function ShopScreen() {
             <Tag label={`$${career.cash}`} tone="gold" solid />
           </View>
           <Text style={styles.blurb}>
-            Lo que comprás se ve en el setup: monitores, silla, RGB, teclado y banner. Tocá un ítem
-            para previsualizarlo en tu pieza.
+            Lo que comprás se ve en el setup y pesa de verdad: SoloQ, descanso, contenido y
+            partidos. Cuentas semanales ≈ ${living.total} (alquiler ${living.rent} + comida $
+            {living.food}).
           </Text>
 
           <View style={styles.preview}>
@@ -124,6 +126,7 @@ export function ShopScreen() {
                     </Text>
                   </View>
                   <Text style={styles.itemBlurb}>{item.blurb}</Text>
+                  <Text style={styles.itemPayoff}>{item.payoff}</Text>
                   {!owned ? (
                     <Button
                       label={ok ? 'Comprar' : 'Sin fondos'}
@@ -198,5 +201,11 @@ const styles = StyleSheet.create({
   itemName: { color: colors.text, fontFamily: fonts.bodyBold, fontSize: 15 },
   cost: { fontFamily: fonts.bodyBold, fontSize: 13 },
   itemBlurb: { color: colors.muted, fontFamily: fonts.body, fontSize: 12, lineHeight: 17 },
+  itemPayoff: {
+    color: colors.gold,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    letterSpacing: 0.3,
+  },
   buy: { alignSelf: 'flex-start' },
 });

@@ -23,6 +23,8 @@ import {
   type WeekActivityId,
   switchRole as applyRoleSwitch,
 } from '../engine';
+import { resolveSeasonOffer, type SeasonOfferId } from '../engine/season';
+import { tryOpenMidSeasonBeat } from '../engine/situationDirector';
 import {
   applyTalkChoice,
   pickTalkBeat,
@@ -95,14 +97,20 @@ interface GameStore {
   buyShopItem: (itemId: string) => void;
   travel: (venueId: VenueId) => void;
   continueNextSeason: () => void;
+  /** Oferta de fin de split (SeasonBreak). */
+  resolveSeasonOfferChoice: (choiceId: SeasonOfferId) => void;
   retireCareer: () => void;
   talkToNpc: (kind: RelationKey, line?: string) => void;
   chooseTalk: (choiceId: string, success?: boolean) => void;
   clearTalk: () => void;
   completeOnboard: () => void;
+  /** Vuelve a mostrar el coach en el hub (playtest / rejugable). */
+  replayHowTo: () => void;
   softFail: (notice: string) => void;
   /** Nueva carrera: borra save. */
   reset: () => void;
+  /** Borra el save del disco (playtest). */
+  deleteSave: () => Promise<void>;
 }
 
 const defaultDraft: Partial<PlayerProfile> = {
@@ -150,15 +158,14 @@ function endingCinematic(pack: ContentPack, next: CareerState): CinematicPayload
 function seasonCinematic(next: CareerState): CinematicPayload {
   const sw = Number(next.flags.lastSeasonWins ?? 0);
   const sl = Number(next.flags.lastSeasonLosses ?? 0);
+  const grade = String(next.flags.seasonReviewGrade ?? 'ok').toUpperCase();
   return {
     vibe: 'season',
     title: `Temporada ${next.season - 1} cerrada`,
     beats: [
       next.lastNotice ?? 'Se acabó el split.',
-      `Marcas: ${sw}V–${sl}D · $${next.cash} en cuenta.`,
-      next.ageYears >= 35
-        ? `Tenés ${next.ageYears} años. El cuerpo pide retiro — o una temporada más.`
-        : `Tenés ${next.ageYears} años. ¿Seguís o colgás los periféricos?`,
+      `Marcas: ${sw}V–${sl}D · review ${grade} · $${next.cash}.`,
+      'El staff tiene una oferta. Después decidís si seguís.',
     ],
   };
 }
@@ -282,8 +289,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       career: {
         ...career,
-        flags: { ...career.flags, onboardDone: 1 },
+        flags: { ...career.flags, onboardDone: 1, howtoReplay: 0 },
       },
+    });
+  },
+
+  replayHowTo: () => {
+    const { career } = get();
+    if (!career) return;
+    set({
+      career: {
+        ...career,
+        flags: { ...career.flags, onboardDone: 0, howtoReplay: 1 },
+      },
+      screen: 'weekHub',
+      talkSession: null,
+      cinematic: null,
+      activeMinigame: null,
     });
   },
 
@@ -375,6 +397,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const promo = maybePromotionCinematic(pack, career, next);
 
     if (outcome.kind === 'match') {
+      const showdown = Number(next.flags.rivalShowdownPending ?? 0) === 1;
       set({
         career: next,
         screen: 'match',
@@ -383,16 +406,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
           promo ??
           ({
             vibe: 'match',
-            title: 'MATCH DAY',
-            subtitle: next.lastNotice ?? 'Draft room en 3…',
+            title: showdown ? 'SHOWDOWN' : 'MATCH DAY',
+            subtitle: showdown
+              ? `vs ${next.roster.rival.name} · esto es personal`
+              : next.lastNotice ?? 'Draft room en 3…',
             durationMs: 1600,
           } as CinematicPayload),
       });
       return;
     }
 
-    next = openEvent(pack, next);
-    set({ career: next, screen: 'play', cinematic: promo });
+    const mid = tryOpenMidSeasonBeat(next);
+    next = mid ?? openEvent(pack, next);
+    set({
+      career: next,
+      screen: 'play',
+      cinematic:
+        mid
+          ? {
+              vibe: 'season',
+              title: 'Mitad de split',
+              beats: [
+                'El staff corta el ritmo a mitad de camino.',
+                'Lo que elijas pesa el resto de la temporada.',
+              ],
+              durationMs: 2000,
+            }
+          : promo,
+    });
   },
 
   resolveLiveMatch: (choices, opponent, seriesMomentum = 50) => {
@@ -431,12 +472,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return;
     }
 
-    const next = openEvent(pack, promoted);
+    const mid = tryOpenMidSeasonBeat(promoted);
+    const next = mid ?? openEvent(pack, promoted);
     set({
       career: next,
       screen: routeAfterCareer(next),
       matchPhase: 'live',
-      cinematic: next.endingId ? endingCinematic(pack, next) : promo,
+      cinematic: next.endingId
+        ? endingCinematic(pack, next)
+        : mid
+          ? {
+              vibe: 'season',
+              title: 'Mitad de split',
+              beats: [
+                'Tras la serie, el staff pide un check-in.',
+                'Mitad de camino: elegí cómo cerrar el split.',
+              ],
+              durationMs: 2000,
+            }
+          : promo,
     });
   },
 
@@ -497,12 +551,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
   travel: (venueId) => {
     const { career } = get();
     if (!career || career.endingId || career.phase === 'seasonBreak') return;
-    set({ career: travelTo(career, venueId), screen: 'weekHub', talkSession: null });
+    const next = travelTo(career, venueId);
+    const moved = next.venueId === venueId;
+    set({
+      career: next,
+      screen: moved ? 'weekHub' : 'city',
+      talkSession: null,
+    });
   },
 
   continueNextSeason: () => {
     const { career } = get();
     if (!career) return;
+    if (career.flags.seasonOfferPending) return;
     const next = continueSeason(career);
     set({
       career: next,
@@ -514,6 +575,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
         durationMs: 1600,
       },
     });
+  },
+
+  resolveSeasonOfferChoice: (choiceId) => {
+    const { career } = get();
+    if (!career) return;
+    set({ career: resolveSeasonOffer(career, choiceId) });
   },
 
   retireCareer: () => {
@@ -529,6 +596,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   reset: () => {
     void clearSave();
+    set({
+      career: null,
+      screen: 'home',
+      draft: { ...defaultDraft },
+      activeMinigame: null,
+      cinematic: null,
+      matchPhase: 'live',
+      talkSession: null,
+      saveSummary: null,
+    });
+  },
+
+  deleteSave: async () => {
+    await clearSave();
     set({
       career: null,
       screen: 'home',
