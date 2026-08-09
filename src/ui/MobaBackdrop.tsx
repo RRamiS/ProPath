@@ -256,7 +256,7 @@ export function MobaBackdrop({ intensity = 'play', showArt = false, stageId }: P
 
       {showArt ? (
         <Image
-          source={require('../../assets/moba-landing-bg.png')}
+          source={require('../../assets/moba-landing-bg.jpg')}
           style={[fill, { width: '100%', height: '100%', opacity: isLanding ? 0.28 : 0.14 }]}
           resizeMode="cover"
         />

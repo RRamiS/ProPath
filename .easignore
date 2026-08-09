@@ -2,6 +2,7 @@
 assets/iso/source/
 .preview/
 .claude/
+agent-transcripts/
 
 # Build / tooling local
 dist/
@@ -16,3 +17,8 @@ web-build/
 # Docs / scripts pesados de render (no runtime)
 scripts/blender_render_rooms.py
 scripts/blender_*.py
+scripts/compress-runtime-assets.mjs
+
+# Local noise
+*.log
+.DS_Store

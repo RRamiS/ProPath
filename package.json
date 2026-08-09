@@ -25,8 +25,10 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "@types/react": "~19.2.2",
     "babel-preset-expo": "^57.0.5",
+    "sharp": "^0.35.3",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -37,6 +39,7 @@
     "export:web": "expo export -p web",
     "build:apk": "eas build -p android --profile preview",
     "build:aab": "eas build -p android --profile production",
+    "compress:assets": "node scripts/compress-runtime-assets.mjs",
     "smoke": "tsx scripts/smoke-career.ts",
     "render:rooms": "node -e \"const {spawnSync}=require('child_process'); const b=process.env.BLENDER||'C:\\\\Program Files\\\\Blender Foundation\\\\Blender 5.2\\\\blender.exe'; const r=spawnSync(b,['--background','--python','scripts/blender_render_rooms.py'],{stdio:'inherit'}); process.exit(r.status??1);\""
   },
