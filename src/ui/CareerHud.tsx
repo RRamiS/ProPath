@@ -94,12 +94,25 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
           </View>
 
           <View style={styles.record}>
-            <Text style={[styles.recordNum, { color: colors.gold }]}>${career.cash}</Text>
+            <Text
+              style={[
+                styles.recordNum,
+                { color: career.cash < 20 ? colors.danger : colors.gold },
+              ]}
+            >
+              ${career.cash}
+            </Text>
             <Text style={styles.recordLabel}>
               {career.wins}–{career.losses}
             </Text>
           </View>
         </View>
+
+        {career.cash < 20 ? (
+          <Text style={styles.cashWarn} numberOfLines={1}>
+            PLATA BAJA · contenido, shop barato o ganá una serie
+          </Text>
+        ) : null}
 
         {!compact ? (
           <View style={styles.masteryRow}>
@@ -347,6 +360,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 10,
     letterSpacing: 0.8,
+  },
+  cashWarn: {
+    color: colors.danger,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.7,
+    marginBottom: 6,
   },
   record: {
     alignItems: 'flex-end',

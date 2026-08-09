@@ -27,9 +27,9 @@ export const VENUES: VenueDef[] = [
   {
     id: 'gym',
     label: 'Gym',
-    blurb: 'Pesas, fisio o descanso. El cuerpo mueve la forma. A veces el rival también.',
+    blurb: 'Pesas, fisio o descanso. El cuerpo mueve la forma. Rival y dúo también pasan.',
     activities: ['rest', 'conditioning', 'physio'],
-    npcs: ['rival'],
+    npcs: ['rival', 'duo'],
     order: 1,
   },
   {
@@ -89,6 +89,7 @@ const TRAVEL_FLAVOR: Record<VenueId, string[]> = {
     'El barista ya sabe tu orden. Mesa del rincón libre.',
     'Café: gente del circuito, rumor a media voz.',
     'Entrá. El rival a veces mira desde la ventana.',
+    'Wi‑Fi del café, group chats y scouts de paso.',
   ],
   academy: [
     'Pizarra, cables, olor a energy. Academia.',
@@ -99,6 +100,7 @@ const TRAVEL_FLAVOR: Record<VenueId, string[]> = {
     'Luces frías. Hoy el mapa se juega en serio.',
     'Arena: público, cámaras, presión de verdad.',
     'El draft room espera. Respirá antes de entrar.',
+    'Túnel lleno. El mic de prensa ya está caliente.',
   ],
 };
 

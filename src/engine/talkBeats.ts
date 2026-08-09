@@ -628,6 +628,180 @@ const BEATS: TalkBeat[] = [
       },
     ],
   },
+  {
+    id: 'coach_arena_huddle',
+    kind: 'coach',
+    venues: ['arena'],
+    line: 'Marek junta al roster en el túnel: "Sesenta segundos. ¿Qué priorizamos?"',
+    weight: 11,
+    choices: [
+      {
+        id: 'huddle_plan',
+        label: 'Repasar el plan',
+        hint: '+visión · ordená',
+        verb: 'sort',
+        sortItems: ['Early', 'Vision', 'Fight', 'Cierre'],
+        effect: { stats: { gameSense: 4, teamwork: 2 }, relations: { coach: 4 } },
+        outcome: 'Cuatro puntos. Cero poesía. Listos.',
+      },
+      {
+        id: 'huddle_calm',
+        label: 'Bajar el pulso',
+        hint: '+mente · reacción',
+        verb: 'react',
+        effect: { stats: { mentality: 4 }, relations: { coach: 3, duo: 2 } },
+        outcome: 'Respiran. El draft deja de pesar tanto.',
+        failOutcome: 'El hush dura un segundo. El ruido vuelve.',
+        failEffect: { stats: { mentality: 1 }, relations: { coach: 1 } },
+      },
+      {
+        id: 'huddle_ego',
+        label: 'Pedir foco en tu lane',
+        hint: '+mecánicas · −coach',
+        effect: { stats: { mechanics: 3 }, relations: { coach: -2 } },
+        outcome: 'Pedís protagonismo. Queda anotado.',
+      },
+    ],
+  },
+  {
+    id: 'manager_arena_press',
+    kind: 'manager',
+    venues: ['arena'],
+    line: 'Manager: "Hay un micrófono de prensa. Diez segundos. ¿Salís o paso yo?"',
+    weight: 9,
+    choices: [
+      {
+        id: 'press_own',
+        label: 'Salir al mic',
+        hint: '+rep · ventana de frase',
+        verb: 'tap',
+        effect: { stats: { reputation: 4, mentality: 1 }, relations: { manager: 3 } },
+        outcome: 'Una frase limpia. El clip viaja.',
+        failOutcome: 'Tartamudeás. Sola rescata el corte.',
+        failEffect: { stats: { reputation: -1, mentality: -2 }, relations: { manager: 1 } },
+      },
+      {
+        id: 'press_pass',
+        label: 'Que hable Sola',
+        hint: '+manager · +foco',
+        effect: { stats: { mentality: 2 }, relations: { manager: 4, coach: 1 } },
+        outcome: 'Vos al booth. Ella al mic. Bien repartido.',
+      },
+      {
+        id: 'press_team',
+        label: 'Meter al dúo',
+        hint: '+dúo · +rep',
+        effect: { stats: { reputation: 2, teamwork: 2 }, relations: { duo: 3, manager: 2 } },
+        outcome: 'Dos caras, menos presión. El staff agradece.',
+      },
+    ],
+  },
+  {
+    id: 'manager_home_call',
+    kind: 'manager',
+    venues: ['home'],
+    line: 'Manager llama a las 23h: "Marca chica, plata chica, deadline ahora. ¿Sí?"',
+    weight: 8,
+    choices: [
+      {
+        id: 'home_deal',
+        label: 'Aceptar el deal',
+        hint: '+plata · ordená cláusulas',
+        verb: 'sort',
+        sortItems: ['Fee', 'Horas', 'Deadline', 'Veto coach'],
+        effect: { stats: { money: 4, reputation: 2 }, relations: { manager: 4 }, fatigue: 2 },
+        outcome: 'Firmás desde la cama. El coach va a fruncir mañana.',
+      },
+      {
+        id: 'home_sleep',
+        label: 'Mañana hablamos',
+        hint: '+mente · −manager',
+        effect: { stats: { mentality: 3 }, relations: { manager: -2 }, fatigue: -4 },
+        outcome: 'Cortás. El sueño gana. El deal espera… o no.',
+      },
+      {
+        id: 'home_half',
+        label: 'Un short, nada más',
+        hint: '+plata chica · timing',
+        verb: 'timing',
+        effect: { stats: { money: 2, reputation: 2 }, relations: { manager: 2 } },
+        outcome: 'Un clip. Sin filmar el scrim. Todos respiran.',
+        failOutcome: 'Pedís de más a las 23h. El deal se enfría.',
+        failEffect: { stats: { money: 0 }, relations: { manager: -1 } },
+      },
+    ],
+  },
+  {
+    id: 'duo_home_setup',
+    kind: 'duo',
+    venues: ['home'],
+    line: 'Duo en tu pieza: "Tu cable management es un crime. ¿Laburamos el setup o ranked?"',
+    weight: 9,
+    choices: [
+      {
+        id: 'duo_cable',
+        label: 'Ordenar cables',
+        hint: '+mente · ordená',
+        verb: 'sort',
+        sortItems: ['USB', 'HDMI', 'Audio', 'Power'],
+        effect: { stats: { mentality: 3 }, relations: { duo: 4 } },
+        outcome: 'Setup limpio. El dúo te respeta más por eso.',
+      },
+      {
+        id: 'duo_dual',
+        label: 'Probar dual PC',
+        hint: '+mecánicas · timing',
+        verb: 'timing',
+        effect: { stats: { mechanics: 3, teamwork: 1 }, relations: { duo: 3 } },
+        outcome: 'Dos pantallas, una amistad. Vale la pena.',
+        failOutcome: 'Driver crash. Ríen igual. Cero progreso.',
+        failEffect: { stats: { mentality: -1 }, relations: { duo: 2 } },
+      },
+      {
+        id: 'duo_skip_setup',
+        label: 'Directo a ranked',
+        hint: '+mecánicas · cables siguen',
+        effect: { stats: { mechanics: 2 }, relations: { duo: 2 } },
+        outcome: 'Ignoran el nido de cables. Prioridades claras.',
+      },
+    ],
+  },
+  {
+    id: 'rival_academy_booth',
+    kind: 'rival',
+    venues: ['academy'],
+    line: 'Rival te cruza en el pasillo de booths: "Bonito scrim block. ¿Customs después o miedo?"',
+    weight: 9,
+    choices: [
+      {
+        id: 'booth_banter',
+        label: 'Banter limpio',
+        hint: '+rival · reacción',
+        verb: 'react',
+        effect: { stats: { mentality: 2, reputation: 1 }, relations: { rival: 4 } },
+        outcome: 'Una línea. Respeto de pasillo.',
+        failOutcome: 'Se te traba. El rival sigue caminando.',
+        failEffect: { stats: { mentality: -1 }, relations: { rival: 1 } },
+      },
+      {
+        id: 'booth_customs',
+        label: 'Customs esta noche',
+        hint: '+mecánicas · timing · escala',
+        verb: 'timing',
+        effect: { stats: { mechanics: 3, reputation: 2 }, relations: { rival: 5 } },
+        outcome: 'Queda pactado. El hilo de rivalidad sube.',
+        failOutcome: 'La voz tiembla. El rival sonríe igual.',
+        failEffect: { stats: { reputation: 1, mentality: -1 }, relations: { rival: 2 } },
+      },
+      {
+        id: 'booth_walk',
+        label: 'Seguir de largo',
+        hint: '+foco · frío',
+        effect: { stats: { mentality: 2 }, relations: { rival: -2, coach: 1 } },
+        outcome: 'Ni una mirada. Guerra larga.',
+      },
+    ],
+  },
 ];
 
 export function pickTalkBeat(
@@ -711,7 +885,10 @@ export function applyTalkChoice(
   if (session.kind === 'rival') {
     const delta = success ? 14 : 8;
     const acceptedCustoms =
-      success && (choiceId === 'rival_challenge' || choiceId === 'rival_heat_yes');
+      success &&
+      (choiceId === 'rival_challenge' ||
+        choiceId === 'rival_heat_yes' ||
+        choiceId === 'booth_customs');
     next = upsertThread(next, 'rivalry', ['rival'], delta, {
       lastTalkBeat: session.beatId,
       ...(acceptedCustoms ? { customsAccepted: 1 } : {}),

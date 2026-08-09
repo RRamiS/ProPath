@@ -10,6 +10,7 @@ import {
   MAX_RANK,
   type RelationKey,
 } from '../engine/relations';
+import { weeklyLivingCost } from '../engine/economy';
 import { activityImpact, getActivity, isMatchWeek } from '../engine/week';
 import type { CareerState, Relations } from '../engine/types';
 import { buildRoster } from '../content/esports/roster';
@@ -92,10 +93,10 @@ function DaypartStrip({ career, matchWeek }: { career: CareerState; matchWeek: b
         <Text style={[styles.fixtureLabel, matchWeek && styles.fixtureLabelLive]}>
           {matchWeek ? 'SERIE ESTA SEMANA' : 'SEMANA SIN SERIE'}
         </Text>
-        <Text style={styles.fixtureHint} numberOfLines={1}>
+        <Text style={styles.fixtureHint} numberOfLines={2}>
           {matchWeek
             ? 'Si no salís por la puerta, igual se juega al cierre.'
-            : 'Ventana para construir: forma, cabeza y vínculos.'}
+            : `Ventana para construir. Cuentas al cierre ≈ $${weeklyLivingCost(career).total}.`}
         </Text>
       </View>
     </View>

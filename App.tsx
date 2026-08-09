@@ -23,6 +23,9 @@ import { initAudio } from './src/ui/audio';
 import { useGameStore } from './src/store/gameStore';
 import { colors } from './src/ui/theme';
 
+/** Si Google Fonts cuelga (offline / APK lento), no dejamos la app en boot eterno. */
+const FONT_TIMEOUT_MS = 2800;
+
 SplashScreen.preventAutoHideAsync().catch(() => {
   /* Expo Go / web — ok si ya se ocultó */
 });
@@ -53,7 +56,7 @@ function useAndroidBack() {
 }
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Syne_700Bold,
     Syne_800ExtraBold,
     DMSans_400Regular,
@@ -61,11 +64,18 @@ export default function App() {
     DMSans_600SemiBold,
     DMSans_700Bold,
   });
+  const [fontsGaveUp, setFontsGaveUp] = useState(false);
   const hydrated = useGameStore((s) => s.hydrated);
   const hydrate = useGameStore((s) => s.hydrate);
   const [boot, setBoot] = useState(false);
 
   useAndroidBack();
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) return;
+    const t = setTimeout(() => setFontsGaveUp(true), FONT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [fontsLoaded, fontError]);
 
   useEffect(() => {
     let alive = true;
@@ -78,7 +88,8 @@ export default function App() {
     };
   }, [hydrate]);
 
-  const ready = fontsLoaded && hydrated && boot;
+  const fontsReady = fontsLoaded || !!fontError || fontsGaveUp;
+  const ready = fontsReady && hydrated && boot;
 
   useEffect(() => {
     if (!ready) return;
