@@ -12,8 +12,8 @@ const events: GameEvent[] = [
     choices: [
       {
         id: 'vod_review',
-        label: 'VOD review todos los días',
-        hint: '+game sense · −plata',
+        label: 'Repasar partidas todos los días',
+        hint: '+lectura · −plata',
         effect: { stats: { gameSense: 8, mechanics: 3, money: -4, mentality: -2 } },
       },
       {
@@ -24,7 +24,7 @@ const events: GameEvent[] = [
       },
       {
         id: 'duo_content',
-        label: 'Duos + contenido en redes',
+        label: 'Jugar de a dos + contenido',
         hint: '+reputación y plata',
         effect: { stats: { reputation: 10, money: 6, mechanics: 2, teamwork: 3 } },
       },
@@ -619,7 +619,7 @@ const events: GameEvent[] = [
 export const esportsPack: ContentPack = {
   id: 'esports',
   title: 'ProPath',
-  subtitle: 'De soloQ al escenario mundial',
+  subtitle: 'De ranked amateur al escenario mundial',
   baseStats: {
     mechanics: 35,
     gameSense: 30,
@@ -630,9 +630,9 @@ export const esportsPack: ContentPack = {
   },
   statLabels: {
     mechanics: 'Mecánicas',
-    gameSense: 'Game sense',
+    gameSense: 'Lectura',
     mentality: 'Mentalidad',
-    teamwork: 'Teamplay',
+    teamwork: 'Equipo',
     reputation: 'Reputación',
     money: 'Plata',
   },
@@ -701,10 +701,10 @@ export const esportsPack: ContentPack = {
   roles: [
     {
       id: 'mid',
-      name: 'Mid',
-      description: 'Carry de mapa, pressure y outplays.',
+      name: 'Centro',
+      description: 'Línea del medio: presión y jugadas que abren el mapa.',
       stakes:
-        'Vos marcás el ritmo del mapa. Si salís mal a ayudar, se nota en el marcador — y en la review del coach.',
+        'Vos marcás el ritmo. Si salís mal a ayudar, se nota en el marcador — y en la review del coach.',
       startingStats: { mechanics: 8, gameSense: 5 },
       primaryStats: ['mechanics', 'gameSense'],
       signatureCalls: ['prio', 'playmake', 'roam', 'focus'],
@@ -712,10 +712,10 @@ export const esportsPack: ContentPack = {
     },
     {
       id: 'jungle',
-      name: 'Jungle',
-      description: 'Ritmo, rutas y llamadas tempranas.',
+      name: 'Jungla',
+      description: 'Recorrés el mapa, emboscás y llamás pelear temprano.',
       stakes:
-        'La composición y tu ruta son tuyas. Un mal recorrido temprano te marca la serie; una buena emboscada te hace líder de calls.',
+        'Tu ruta es tuya. Un mal recorrido temprano te marca la serie; una buena emboscada te hace líder de calls.',
       startingStats: { gameSense: 10, teamwork: 5 },
       primaryStats: ['gameSense', 'teamwork'],
       signatureCalls: ['prio', 'roam', 'steal', 'baron'],
@@ -723,8 +723,8 @@ export const esportsPack: ContentPack = {
     },
     {
       id: 'adc',
-      name: 'ADC',
-      description: 'Crecés tarde y vivís del posicionamiento con tu support.',
+      name: 'Tirador',
+      description: 'Crecés tarde y vivís del posicionamiento con tu soporte.',
       stakes:
         'Tu valor explota tarde. Dependés del duo: si la línea se rompe, el late nunca llega.',
       startingStats: { mechanics: 10, mentality: 3 },
@@ -734,8 +734,8 @@ export const esportsPack: ContentPack = {
     },
     {
       id: 'support',
-      name: 'Support',
-      description: 'Visión, inicios de pelea y liderazgo en calls.',
+      name: 'Soporte',
+      description: 'Visión, inicios de pelea y liderazgo en las calls.',
       stakes:
         'Pocas kills, mucho control. Si no armás la visión, el carry muere — y la culpa cae igual sobre vos.',
       startingStats: { teamwork: 12, gameSense: 5 },
@@ -745,8 +745,8 @@ export const esportsPack: ContentPack = {
     },
     {
       id: 'top',
-      name: 'Top',
-      description: 'Enfrentamientos 1v1, teletransportes y cabeza fría.',
+      name: 'Toplaner',
+      description: 'Línea solitaria: duelos 1v1 y cabeza fría.',
       stakes:
         'Línea solitaria. Un mal matchup te deja irrelevante; un teletransporte clutch te convierte en el héroe del split.',
       startingStats: { mentality: 10, mechanics: 5 },
@@ -756,10 +756,10 @@ export const esportsPack: ContentPack = {
     },
   ],
   stages: [
-    { id: 'soloq', name: 'SoloQ / Ranked', order: 1 },
-    { id: 'academy', name: 'Academy / Tier 3', order: 2 },
+    { id: 'soloq', name: 'Ranked amateur', order: 1 },
+    { id: 'academy', name: 'Academia', order: 2 },
     { id: 'challengers', name: 'Challengers', order: 3 },
-    { id: 'tier1', name: 'Liga Tier 1', order: 4 },
+    { id: 'tier1', name: 'Liga pro', order: 4 },
     { id: 'worlds', name: 'Internacional', order: 5 },
   ],
   endings: [

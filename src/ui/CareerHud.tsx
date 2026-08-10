@@ -25,7 +25,7 @@ function formHint(form: number): string {
 function fatigueHint(fatigue: number): string {
   if (fatigue >= 85) return 'Quemado: la forma se desploma sola';
   if (fatigue >= 70) return 'Zona roja — conviene gym o cama';
-  if (fatigue >= 55) return 'Cargado — si seguís grind, pagás forma';
+  if (fatigue >= 55) return 'Cargado — si seguís sin parar, pagás forma';
   return 'Bajá esto con descanso (gym rinde más)';
 }
 
@@ -133,7 +133,7 @@ export function CareerHud({ career, pack, compact, onExit }: Props) {
           <View style={styles.objRow}>
             <View style={styles.objTop}>
               <Text style={styles.objLabel} numberOfLines={1}>
-                META · {objective.label}
+                OBJETIVO · {objective.label}
               </Text>
               <Text style={styles.objNum}>
                 {Math.min(objective.current(career), objective.target)}/{objective.target}

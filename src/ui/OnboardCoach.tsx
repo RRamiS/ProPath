@@ -1,5 +1,5 @@
 /**
- * Coach de 30s en la primera semana: objeto → 3 opciones → skill → mapa.
+ * Coach de primera semana: objetivo → objeto → 3 opciones → skill → mapa.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, SKEW, space, tones, UNSKEW } from './theme';
@@ -7,27 +7,33 @@ import { colors, fonts, SKEW, space, tones, UNSKEW } from './theme';
 export const ONBOARD_STEPS = [
   {
     step: 0,
-    label: '1/4',
-    title: 'Tocá un objeto',
-    body: 'Cama, PC, cámara… cada cosa abre una acción del bloque.',
+    label: '1/5',
+    title: 'Tu META está arriba',
+    body: 'La barra META del HUD es tu objetivo de la semana (ej. ganar series). Cumplirla da premio. También la ves en DATA.',
   },
   {
     step: 1,
-    label: '2/4',
-    title: 'Elegí entre 3',
-    body: 'Cada opción tiene pros y contras. Leé los chips antes de confirmar.',
+    label: '2/5',
+    title: 'Tocá un objeto',
+    body: 'Cama, PC, cámara… cada cosa es una acción: entrenar, descansar, contenido o laburar con el equipo.',
   },
   {
     step: 2,
-    label: '3/4',
-    title: 'Ejecutá el skill',
-    body: 'Si dice timing, reacción, tap u ordenar: no es solo un click. Acertar o fallar cambia el resultado.',
+    label: '3/5',
+    title: 'Elegí entre 3',
+    body: 'Cada opción muestra qué sube y qué baja. No hace falta saber jerga: mirá los chips (+mecánicas, −fatiga, etc.).',
   },
   {
     step: 3,
-    label: '4/4',
-    title: 'Mirá el mapa',
-    body: 'Abrí MAPA arriba. Vas a ver quién está en cada sede. Tocá una para viajar.',
+    label: '4/5',
+    title: 'Ejecutá el skill',
+    body: 'Si dice timing, reacción, tap u ordenar: un mini-reto. Acertar o fallar cambia el resultado.',
+  },
+  {
+    step: 4,
+    label: '5/5',
+    title: 'Mapa y gente',
+    body: 'Abrí MAPA para viajar a otras sedes y hablar con coach, duo o rival. Ellos se acuerdan de lo que dijiste.',
   },
 ] as const;
 
@@ -35,10 +41,12 @@ export function OnboardCoach({
   step,
   onSkip,
   onOpenMap,
+  onShowMeta,
 }: {
   step: number;
   onSkip: () => void;
   onOpenMap?: () => void;
+  onShowMeta?: () => void;
 }) {
   const current = ONBOARD_STEPS.find((s) => s.step === step) ?? ONBOARD_STEPS[0]!;
   return (
@@ -54,7 +62,12 @@ export function OnboardCoach({
       </View>
       <Text style={styles.title}>{current.title}</Text>
       <Text style={styles.body}>{current.body}</Text>
-      {step === 3 && onOpenMap ? (
+      {step === 0 && onShowMeta ? (
+        <Pressable onPress={onShowMeta} style={styles.cta}>
+          <Text style={styles.ctaText}>VER OBJETIVOS →</Text>
+        </Pressable>
+      ) : null}
+      {step === 4 && onOpenMap ? (
         <Pressable onPress={onOpenMap} style={styles.cta}>
           <Text style={styles.ctaText}>ABRIR MAPA →</Text>
         </Pressable>

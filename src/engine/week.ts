@@ -56,38 +56,38 @@ const SLOT_SCALE = 0.7;
 export const WEEK_ACTIVITIES: WeekActivity[] = [
   {
     id: 'soloq',
-    label: 'Grind SoloQ',
-    blurb: 'Horas de ranked en silencio. Sube las manos, castiga la cabeza.',
+    label: 'Ranked solo',
+    blurb: 'Partidas ranked por tu cuenta. Suben las manos; cansa la cabeza.',
     stats: { mechanics: 4, gameSense: 2, mentality: -2 },
     form: 3,
     fatigue: 9,
     relations: { rival: 2 },
-    notice: 'SoloQ: manos calientes, cabeza cargada.',
+    notice: 'Ranked solo: manos calientes, cabeza cargada.',
     slots: ['day', 'night'],
     prop: 'rig',
   },
   {
     id: 'scrim',
-    label: 'Scrims de team',
-    blurb: 'Bloques con el roster. Construye teamplay y confianza.',
+    label: 'Entrenar en equipo',
+    blurb: 'Bloques con tu roster. Sube juego en equipo y confianza.',
     stats: { teamwork: 5, gameSense: 2, mechanics: 2 },
     form: 2,
     fatigue: 11,
     relations: { coach: 3, duo: 4 },
-    notice: 'Scrims densos. El roster respira junto.',
+    notice: 'Entrenamiento denso. El roster respira junto.',
     minStageOrder: 2,
     slots: ['day'],
     prop: 'board',
   },
   {
     id: 'vod',
-    label: 'VOD / lab',
-    blurb: 'Frame por frame con el coach. Menos ego, más lectura.',
+    label: 'Repasar partidas',
+    blurb: 'Mirás tus juegos con el coach. Menos ego, más lectura.',
     stats: { gameSense: 6, mentality: 2 },
     form: 0,
     fatigue: -4,
     relations: { coach: 3 },
-    notice: 'Lab de VOD: menos ego, más pattern recognition.',
+    notice: 'Repaso: menos ego, más lectura de mapa.',
     slots: ['day', 'night'],
     prop: 'tv',
   },
@@ -280,11 +280,11 @@ function tickerFor(activity: WeekActivityId, state: CareerState): string[] {
   const name = state.profile.name;
   switch (activity) {
     case 'soloq':
-      return [`${name} farmea LP`, 'Manos calientes, cabeza cargada'];
+      return [`${name} en ranked solo`, 'Manos calientes, cabeza cargada'];
     case 'scrim':
-      return ['Scrims con el roster', 'Teamplay en subida'];
+      return ['Entrenamiento con el roster', 'Juego en equipo en subida'];
     case 'vod':
-      return ['Lab de VOD', 'Menos ego, más lectura'];
+      return ['Repaso de partidas', 'Menos ego, más lectura'];
     case 'rest':
       return state.venueId === 'gym'
         ? ['Gym · cuerpo primero', 'Fatiga baja más que en casa']

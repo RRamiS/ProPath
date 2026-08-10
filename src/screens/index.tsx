@@ -167,7 +167,7 @@ export function HomeScreen() {
               icon="soloq"
               tone="accent"
               title="Una semana, una decisión"
-              copy="SoloQ, scrims, VOD, descanso o contenido. Todo tiene precio en forma y fatiga."
+              copy="Ranked solo, entrenar en equipo, repasá partidas, descansá o hacé contenido. Todo pesa en forma y fatiga."
             />
             <FeatureRow
               index="02"

@@ -337,7 +337,7 @@ export function WeekHubScreen() {
   };
 
   const finishOnboard = () => {
-    setOnboardStep(4);
+    setOnboardStep(5);
     completeOnboard();
   };
 
@@ -376,7 +376,7 @@ export function WeekHubScreen() {
       return;
     }
     chooseTalk(id, true);
-    bumpOnboard(3);
+    bumpOnboard(4);
   };
 
   const showOnboard =
@@ -398,10 +398,14 @@ export function WeekHubScreen() {
           <FadeSlide key={`hub-${career.turn}-${career.daypart}-${career.venueId}`}>
             <CareerHud career={career} pack={pack} onExit={() => void goHome()} />
 
-            {showOnboard && onboardStep < 4 ? (
+            {showOnboard && onboardStep < 5 ? (
               <OnboardCoach
                 step={onboardStep}
                 onSkip={finishOnboard}
+                onShowMeta={() => {
+                  setShowMeta(true);
+                  bumpOnboard(1);
+                }}
                 onOpenMap={() => {
                   finishOnboard();
                   setScreen('city');
@@ -415,7 +419,8 @@ export function WeekHubScreen() {
                   Sos{' '}
                   {(pack.roles.find((r) => r.id === career.profile.roleId)?.name ??
                     career.profile.roleId).toUpperCase()}
-                  : tu actividad firma sube maestría — eso pesa en las series.
+                  . Entrená con tu objeto de rol para subir maestría — eso pesa cuando jugás
+                  series. Mirá la META arriba: es tu objetivo.
                 </Text>
               </Panel>
             ) : null}
@@ -669,7 +674,7 @@ export function WeekHubScreen() {
                     onDone={(ok) => {
                       const id = pendingTalk.id;
                       setPendingTalk(null);
-                      bumpOnboard(3);
+                      bumpOnboard(4);
                       chooseTalk(id, ok);
                     }}
                   />
@@ -684,7 +689,7 @@ export function WeekHubScreen() {
                     onDone={(ok) => {
                       const { slot, choice } = pendingAct;
                       setPendingAct(null);
-                      bumpOnboard(3);
+                      bumpOnboard(4);
                       commit(slot, choice.id, ok);
                     }}
                   />

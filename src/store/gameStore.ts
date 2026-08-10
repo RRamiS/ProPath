@@ -405,13 +405,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       talkSession: null,
       cinematic: {
         vibe: 'kickoff',
-        title: `${career.profile.name} entra al grind`,
+        title: `${career.profile.name} empieza la carrera`,
         beats: [
           `${nation?.name ?? ''} · ${role?.name ?? draft.roleId?.toUpperCase()} · ${career.ageYears} años.`,
-          role?.stakes ??
-            'Tu rol define cómo crecés, cómo jugás las series y cómo te lee el circuito.',
-          'Tocá un objeto → elegí entre 3 → si pide skill, ejecutalo.',
-          'Abrí el MAPA: vas a ver quién está en cada sede.',
+          'Arriba vas a ver tu OBJETIVO (META). Cumplirlo da premio.',
+          'Tocá un objeto → elegí entre 3 (mirá los chips) → si pide skill, ejecutalo.',
+          'Abrí el MAPA para viajar y hablar con tu gente.',
         ],
       },
     });
