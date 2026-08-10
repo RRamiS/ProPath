@@ -186,6 +186,53 @@ function routeAfterCareer(next: CareerState): Screen {
   return 'weekHub';
 }
 
+/** Reconciliar save viejo / desync screen↔phase al continuar. */
+function reconcileContinueScreen(
+  career: CareerState,
+  saved: Screen
+): { screen: Screen; matchPhase: MatchPhase } {
+  if (career.endingId) return { screen: 'ending', matchPhase: 'live' };
+  if (career.phase === 'seasonBreak') return { screen: 'seasonBreak', matchPhase: 'live' };
+  if (career.phase === 'match') {
+    return { screen: 'match', matchPhase: 'live' };
+  }
+  if (
+    career.phase === 'event' &&
+    (career.currentSituation || career.currentEventId)
+  ) {
+    return { screen: 'play', matchPhase: 'live' };
+  }
+  if (saved === 'play' && !career.currentEventId && !career.currentSituation) {
+    return { screen: 'weekHub', matchPhase: 'live' };
+  }
+  // phase ya no es match (se manejó arriba): un save "match" huérfano vuelve al hub.
+  if (saved === 'match') {
+    return { screen: 'weekHub', matchPhase: 'live' };
+  }
+  return { screen: saved === 'home' || saved === 'create' ? 'weekHub' : saved, matchPhase: 'live' };
+}
+
+function closeSeasonFlow(
+  pack: ContentPack,
+  state: CareerState
+): { career: CareerState; screen: Screen; cinematic: CinematicPayload | null } {
+  const roll = nextRng(state.rngSeed);
+  const closed = closeSeason({ ...state, rngSeed: roll.seed });
+  const forced = maybeForceRetire(closed, roll.value);
+  if (forced) {
+    return {
+      career: forced,
+      screen: 'ending',
+      cinematic: endingCinematic(pack, forced),
+    };
+  }
+  return {
+    career: closed,
+    screen: 'seasonBreak',
+    cinematic: seasonCinematic(closed),
+  };
+}
+
 export const useGameStore = create<GameStore>((set, get) => ({
   pack: esportsPack,
   screen: 'home',
@@ -216,11 +263,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({ saveSummary: null });
       return;
     }
-    const screen = save.career.endingId ? 'ending' : save.screen;
+    const reconciled = reconcileContinueScreen(save.career, save.screen);
     set({
       career: save.career,
-      screen,
-      matchPhase: save.matchPhase,
+      screen: reconciled.screen,
+      matchPhase:
+        reconciled.screen === 'match' ? save.matchPhase || reconciled.matchPhase : 'live',
       talkSession: null,
       activeMinigame: null,
       cinematic: null,
@@ -472,8 +520,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const aftermath = tryOpenRivalAftermathBeat(promoted);
     if (aftermath) {
       const won = Number(aftermath.flags.rivalShowdownWon ?? 0) === 1;
+      const seasonDue = promoted.weekInSeason >= promoted.maxTurns;
       set({
-        career: aftermath,
+        career: seasonDue
+          ? {
+              ...aftermath,
+              flags: { ...aftermath.flags, pendingSeasonClose: 1 },
+            }
+          : aftermath,
         screen: routeAfterCareer(aftermath),
         matchPhase: 'live',
         cinematic: {
@@ -491,14 +545,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     if (promoted.weekInSeason >= promoted.maxTurns) {
-      const roll = nextRng(promoted.rngSeed);
-      const closed = closeSeason({ ...promoted, rngSeed: roll.seed });
-      const forced = maybeForceRetire(closed, roll.value);
-      if (forced) {
-        set({ career: forced, screen: 'ending', cinematic: endingCinematic(pack, forced) });
-        return;
-      }
-      set({ career: closed, screen: 'seasonBreak', cinematic: seasonCinematic(closed) });
+      const closed = closeSeasonFlow(pack, promoted);
+      set({
+        career: closed.career,
+        screen: closed.screen,
+        cinematic: closed.cinematic,
+      });
       return;
     }
 
@@ -527,8 +579,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
   choose: (choiceId) => {
     const { pack, career } = get();
     if (!career) return;
-    const next = applyChoice(pack, career, choiceId);
+    let next = applyChoice(pack, career, choiceId);
     const promo = maybePromotionCinematic(pack, career, next);
+
+    // Aftermath (u otro beat) que aplazó el cierre de split.
+    if (
+      !next.endingId &&
+      next.phase === 'hub' &&
+      Number(next.flags.pendingSeasonClose ?? 0) === 1
+    ) {
+      const closed = closeSeasonFlow(pack, {
+        ...next,
+        flags: { ...next.flags, pendingSeasonClose: 0 },
+      });
+      set({
+        career: closed.career,
+        activeMinigame: null,
+        screen: closed.screen,
+        cinematic: closed.cinematic,
+      });
+      return;
+    }
 
     set({
       career: next,
@@ -678,7 +749,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
       case 'city':
         set({ screen: 'weekHub' });
         return true;
-      case 'play':
+      case 'play': {
+        const arch = s.career?.currentSituation?.archetypeId;
+        const forcedBeat =
+          arch === 'rival_aftermath_win' ||
+          arch === 'rival_aftermath_loss' ||
+          arch === 'mid_season_checkin';
+        // Beats de arco: no descartarlos con atrás — volver al menú preservando save.
+        if (forcedBeat) {
+          void get().goHome();
+          return true;
+        }
         if (s.career) {
           set({
             career: {
@@ -694,6 +775,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           set({ screen: 'weekHub', activeMinigame: null });
         }
         return true;
+      }
       case 'minigame':
         set({
           screen: s.career?.currentSituation || s.career?.currentEventId ? 'play' : 'weekHub',
@@ -723,6 +805,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 useGameStore.subscribe((state, prev) => {
   if (!state.hydrated) return;
   if (!state.career) return;
+  // No pisar el slot al estar en menú/create (goHome ya guardó la pantalla real).
+  if (state.screen === 'home' || state.screen === 'create') return;
   if (
     state.career === prev.career &&
     state.screen === prev.screen &&

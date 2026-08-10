@@ -5,16 +5,31 @@ import { captureRef } from 'react-native-view-shot';
 
 export type ShareResult = 'shared' | 'unavailable' | 'failed';
 
+async function shareTextFallback(
+  opts?: { dialogTitle?: string; message?: string }
+): Promise<ShareResult> {
+  if (!opts?.message) return 'unavailable';
+  try {
+    await Share.share({
+      message: opts.message,
+      title: opts.dialogTitle ?? 'ProPath',
+    });
+    return 'shared';
+  } catch {
+    return 'failed';
+  }
+}
+
 /**
  * Captura una View (ShareCard) y abre el sheet nativo.
- * Si no hay sharing de archivos (web): cae a Share de texto.
+ * Si falla la captura o no hay sharing de archivos: cae a Share de texto.
  */
 export async function shareViewAsImage(
   ref: RefObject<View | null>,
   opts?: { dialogTitle?: string; message?: string }
 ): Promise<ShareResult> {
   try {
-    if (!ref.current) return 'failed';
+    if (!ref.current) return shareTextFallback(opts);
 
     const uri = await captureRef(ref, {
       format: 'png',
@@ -32,16 +47,8 @@ export async function shareViewAsImage(
       return 'shared';
     }
 
-    if (opts?.message) {
-      await Share.share({
-        message: opts.message,
-        title: opts.dialogTitle ?? 'ProPath',
-      });
-      return 'shared';
-    }
-
-    return 'unavailable';
+    return shareTextFallback(opts);
   } catch {
-    return 'failed';
+    return shareTextFallback(opts);
   }
 }

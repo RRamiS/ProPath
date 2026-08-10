@@ -283,6 +283,13 @@ export function WeekHubScreen() {
     setSelectedId(null);
   }, [daypart, turn, venueId]);
 
+  // Si el store limpia el talk (back / clearTalk), no dejar el skill dock colgado.
+  useEffect(() => {
+    if (!talkSession) {
+      setPendingTalk(null);
+    }
+  }, [talkSession]);
+
   useEffect(() => {
     if (lastNotice?.startsWith('Objetivo cumplido')) {
       buzzClaim();

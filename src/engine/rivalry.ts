@@ -43,11 +43,17 @@ export function ensureRivalryHeat(state: CareerState, minHeat: number): CareerSt
   return upsertThread(state, 'rivalry', ['rival'], minHeat - heat);
 }
 
+export function isShowdownResolved(state: CareerState): boolean {
+  return isShowdownWon(state) || isShowdownLost(state);
+}
+
 /** Etiqueta corta para el chip del HUD. */
 export function rivalryHudLabel(state: CareerState): string | null {
   const heat = rivalryHeat(state);
-  if (heat < 30 && !isShowdownPending(state)) return null;
   if (isShowdownPending(state)) return `SHOWDOWN vs ${state.roster.rival.name}`;
+  if (isShowdownWon(state)) return 'showdown ganado';
+  if (isShowdownLost(state)) return 'deuda de showdown';
+  if (heat < 30) return null;
   if (hasCustomsAccepted(state) && heat < RIVAL_SHOWDOWN_HEAT) {
     return 'customs hechos · falta cara a cara';
   }
@@ -68,9 +74,11 @@ export function rivalArchetypeForAction(
   const heat = rivalryHeat(state);
   const customs = hasCustomsAccepted(state);
   const pending = isShowdownPending(state);
+  const resolved = isShowdownResolved(state);
 
   if (
     !pending &&
+    !resolved &&
     customs &&
     heat >= RIVAL_SHOWDOWN_HEAT &&
     (action === 'offer' || action === 'claim')
@@ -79,6 +87,7 @@ export function rivalArchetypeForAction(
   }
   if (
     !customs &&
+    !resolved &&
     heat >= RIVAL_CUSTOMS_HEAT &&
     (action === 'claim' || action === 'offer' || action === 'leak')
   ) {

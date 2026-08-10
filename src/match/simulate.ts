@@ -226,8 +226,8 @@ export function resolveMatch(
   // Un poco más duros: si no laburás la semana, el “siempre gano” se corta.
   add('Nivel del rival', -(0.55 + stagePenalty + seasonPressure));
 
-  const showdown =
-    isShowdownPending(state) && opponent === state.roster.rival.name;
+  // El pending basta: no depender del string del nombre (save/replay pueden divergir).
+  const showdown = isShowdownPending(state);
   const rivalHeat =
     state.activeThreads.find((t) => t.kind === 'rivalry')?.intensity ?? 0;
   if (showdown) {

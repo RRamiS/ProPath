@@ -358,7 +358,16 @@ export function openForcedArchetype(
 ): CareerState {
   if (state.endingId) return state;
   const arch = SITUATION_ARCHETYPES.find((a) => a.id === archetypeId);
-  if (!arch) return { ...state, phase: 'event' };
+  // Sin arquetipo válido: no dejar phase=event vacío (soft-lock en Play).
+  if (!arch) {
+    return {
+      ...state,
+      phase: 'hub',
+      currentEventId: null,
+      currentSituation: null,
+      lastNotice: 'El momento pasó. Seguís en el hub.',
+    };
+  }
   // Ignora filtro de sede: el beat de arco te encuentra donde estés.
   const flexible = { ...arch, venues: undefined };
   const { instance, seed } = instantiateSituation(flexible, state, state.rngSeed);
@@ -518,6 +527,10 @@ export function applySituationChoice(
         };
       } else if (choiceId === 'public_refuse') {
         threadFlags.customsRefused = 1;
+      } else if (sit.archetypeId === 'rival_showdown' && choiceId === 'walk_away') {
+        // Pausar el cara a cara: no sumar heat (el genérico "walk" +12 mentía).
+        delta = -8;
+        threadFlags.showdownPaused = 1;
       } else if (
         sit.archetypeId === 'rival_showdown' &&
         (choiceId === 'stare_down' || choiceId === 'clap_back')

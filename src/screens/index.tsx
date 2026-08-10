@@ -471,7 +471,29 @@ export function PlayScreen() {
       <View style={styles.root}>
         <Atmosphere stageId={career?.stageId} />
         <SafeAreaView style={styles.safe}>
-          <Body style={styles.pad}>Cargando evento…</Body>
+          <Body style={styles.pad}>No hay evento activo.</Body>
+          <View style={styles.pad}>
+            <Button
+              label="Volver al hub"
+              onPress={() => {
+                const c = useGameStore.getState().career;
+                if (c) {
+                  useGameStore.setState({
+                    career: {
+                      ...c,
+                      phase: 'hub',
+                      currentEventId: null,
+                      currentSituation: null,
+                    },
+                    screen: 'weekHub',
+                  });
+                } else {
+                  useGameStore.getState().setScreen('weekHub');
+                }
+              }}
+            />
+            <Button label="Menú" variant="ghost" onPress={() => void goHome()} />
+          </View>
         </SafeAreaView>
       </View>
     );
@@ -485,6 +507,23 @@ export function PlayScreen() {
         <Atmosphere stageId={career.stageId} />
         <SafeAreaView style={styles.safe}>
           <Body style={styles.pad}>Evento no encontrado.</Body>
+          <View style={styles.pad}>
+            <Button
+              label="Volver al hub"
+              onPress={() => {
+                useGameStore.setState({
+                  career: {
+                    ...career,
+                    phase: 'hub',
+                    currentEventId: null,
+                    currentSituation: null,
+                  },
+                  screen: 'weekHub',
+                });
+              }}
+            />
+            <Button label="Menú" variant="ghost" onPress={() => void goHome()} />
+          </View>
         </SafeAreaView>
       </View>
     );
