@@ -387,7 +387,7 @@ export function CreateScreen() {
             right={<Tag label="Decisión clave" tone="gold" />}
           />
           <Body style={styles.roleIntro}>
-            No es un skin: es tu identidad mecánica. Podés cambiar entre splits, pero
+            No es un skin: es tu posición en el mapa. Podés cambiar entre splits, pero
             cuesta plata, forma y confianza del staff.
           </Body>
           {pack.roles.map((r) => {

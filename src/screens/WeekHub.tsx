@@ -108,7 +108,10 @@ function ObjectivesPanel({ career }: { career: CareerState }) {
   if (objectives.length === 0) return null;
 
   return (
-    <Panel tone="gold" label="Objetivos" style={styles.block}>
+    <Panel tone="gold" label="Para qué estás jugando" style={styles.block}>
+      <Text style={styles.objIntro}>
+        Cumplí estas metas y cobrás el premio solo. La de arriba del HUD es la principal.
+      </Text>
       {objectives.map((o, i) => {
         const pct = objectiveProgress(o, career);
         return (
@@ -267,7 +270,9 @@ export function WeekHubScreen() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
-  const [showMeta, setShowMeta] = useState(false);
+  const [showMeta, setShowMeta] = useState(
+    () => !career?.flags.onboardDone || career?.turn === 0
+  );
   const [pendingTalk, setPendingTalk] = useState<TalkChoice | null>(null);
   const [pendingAct, setPendingAct] = useState<{
     slot: RoomSlot;
@@ -912,6 +917,13 @@ const styles = StyleSheet.create({
 
   /* objetivos */
   objRow: { gap: 6 },
+  objIntro: {
+    color: colors.muted,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
   objRowGap: {
     marginTop: 14,
     paddingTop: 14,

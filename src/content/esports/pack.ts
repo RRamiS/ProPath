@@ -32,43 +32,48 @@ const events: GameEvent[] = [
   },
   {
     id: 'rank_anxiety',
-    title: 'Ansiedad de elo',
-    body: 'Estás a un win de un rank que te obsesiona. El chat te come la cabeza.',
+    title: 'Ansiedad de ranking',
+    body: 'Estás a una victoria de un rango que te obsesiona. El chat te come la cabeza.',
     stages: ['soloq'],
     weight: 7,
     choices: [
       {
         id: 'take_break',
         label: 'Cerrar y caminar 20 minutos',
+        hint: '+mentalidad',
         effect: { stats: { mentality: 8, mechanics: -1 } },
       },
       {
         id: 'one_more',
         label: 'Una más… y otra',
+        hint: '+mecánicas · −mentalidad fuerte',
         effect: { stats: { mechanics: 4, mentality: -10, reputation: -2 } },
       },
       {
         id: 'smurf_warmup',
-        label: 'Warmup en otra cuenta',
+        label: 'Calentar en partidas más fáciles',
+        hint: '+mecánicas · +lectura',
         effect: { stats: { mechanics: 5, gameSense: 2, mentality: 2 } },
       },
     ],
   },
   {
     id: 'role_otp',
-    title: 'Main o flex',
-    body: 'Tu rol está saturado en el elo. Un coach te sugiere flexear para subir más rápido.',
+    title: 'Un rol o varios',
+    body: 'Tu rol está saturado en tu nivel. Un coach te sugiere probar otros roles para subir más rápido.',
     stages: ['soloq', 'academy'],
     weight: 6,
     choices: [
       {
         id: 'otp_pride',
-        label: 'OTP: perfeccionar tu rol',
+        label: 'Perfeccionar solo tu rol',
+        hint: '+mecánicas · −equipo',
         effect: { stats: { mechanics: 9, gameSense: 4, teamwork: -3 } },
       },
       {
         id: 'flex_climb',
-        label: 'Flexear para ganar LP',
+        label: 'Probar otros roles para ganar más',
+        hint: '+equipo · +reputación',
         effect: { stats: { teamwork: 8, reputation: 4, mechanics: 2 } },
       },
     ],
@@ -88,7 +93,8 @@ const events: GameEvent[] = [
       },
       {
         id: 'skip_lan',
-        label: 'Saltarlo y farmear elo',
+        label: 'Saltarlo y seguir en ranked',
+        hint: '+mecánicas · −reputación',
         effect: { stats: { mechanics: 5, reputation: -3, money: 2 } },
       },
     ],
@@ -96,7 +102,7 @@ const events: GameEvent[] = [
   {
     id: 'internet_outage',
     title: 'El wifi traiciona',
-    body: 'Se te cae la conexión en una ranked decisiva. Perdés LP y la cabeza.',
+    body: 'Se te cae la conexión en una ranked importante. Perdés puntos y la cabeza.',
     stages: ['soloq'],
     nationTags: ['latam', 'hungry-scene'],
     weight: 5,
@@ -104,11 +110,13 @@ const events: GameEvent[] = [
       {
         id: 'invest_net',
         label: 'Invertir en mejor conexión',
+        hint: '−plata · +mentalidad',
         effect: { stats: { money: -10, mentality: 4, mechanics: 3 }, flags: { goodNet: true } },
       },
       {
         id: 'rage_queue',
-        label: 'Rage queue apenas vuelve',
+        label: 'Enojarte y seguir apenas vuelve',
+        hint: '−mentalidad fuerte',
         effect: { stats: { mentality: -8, mechanics: -2, reputation: -3 } },
       },
     ],
@@ -142,17 +150,20 @@ const events: GameEvent[] = [
     choices: [
       {
         id: 'mute_focus',
-        label: 'Mute y focus en tu rol',
+        label: 'Silenciar y enfocarte en tu juego',
+        hint: '+mentalidad · +mecánicas',
         effect: { stats: { mentality: 6, teamwork: -2, mechanics: 4 } },
       },
       {
         id: 'shotcall',
-        label: 'Tomar el call y ordenar el caos',
+        label: 'Tomar el liderazgo y ordenar el caos',
+        hint: '+equipo · +reputación',
         effect: { stats: { teamwork: 10, mentality: 3, reputation: 5 } },
       },
       {
         id: 'flame_back',
-        label: 'Devolver el flame',
+        label: 'Responderle con insultos',
+        hint: '−reputación fuerte',
         effect: { stats: { mentality: -8, reputation: -10, teamwork: -5 } },
       },
     ],
@@ -160,13 +171,14 @@ const events: GameEvent[] = [
   {
     id: 'academy_contract',
     title: 'Oferta Academy',
-    body: 'Una org te ofrece contrato academy: sueldo bajo, team house y fixtures semanales.',
+    body: 'Una organización te ofrece contrato de academia: sueldo bajo, casa de equipo y partidos semanales.',
     stages: ['soloq', 'academy'],
     weight: 8,
     choices: [
       {
         id: 'sign_academy',
         label: 'Firmar',
+        hint: '+plata · +equipo · pasás a Academia',
         effect: {
           stats: { money: 8, teamwork: 8, reputation: 10, mentality: 4 },
           setStage: 'academy',

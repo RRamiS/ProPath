@@ -4,8 +4,8 @@ import type { GameEvent } from '../../engine/types';
 export const hubEvents: GameEvent[] = [
   {
     id: 'soloq_tilt_after_grind',
-    title: 'Chat tóxico post-grind',
-    body: 'Después de una semana de SoloQ, un flame te clava. {{duo}} te escribe: “¿cerramos?”',
+    title: 'Chat tóxico después de ranked',
+    body: 'Después de una semana de ranked solo, alguien te insulta. {{duo}} te escribe: “¿cerramos?”',
     stages: ['soloq', 'academy'],
     activityTags: ['soloq'],
     weight: 8,
@@ -18,17 +18,20 @@ export const hubEvents: GameEvent[] = [
     choices: [
       {
         id: 'mute_climb',
-        label: 'Mute all y seguir',
+        label: 'Silenciar a todos y seguir',
+        hint: '+mecánicas · −mentalidad',
         effect: { stats: { mechanics: 4, mentality: -3 }, relations: { duo: 2 } },
       },
       {
         id: 'duo_up',
-        label: 'Duo con {{duo}}',
+        label: 'Jugar de a dos con {{duo}}',
+        hint: '+equipo · +mentalidad',
         effect: { stats: { teamwork: 5, mentality: 4 }, relations: { duo: 6 } },
       },
       {
         id: 'tweet_back',
         label: 'Respuesta pasivo-agresiva',
+        hint: '−reputación',
         effect: { stats: { reputation: -4, mentality: -6 }, relations: { rival: 4 } },
       },
     ],
@@ -161,7 +164,7 @@ export const hubEvents: GameEvent[] = [
   {
     id: 'duo_chemistry_peak',
     title: 'Synergy con el duo',
-    body: '{{duo}} y vos leen el mismo timing sin hablar. {{coach}} lo nota en el scrim.',
+    body: '{{duo}} y vos leen el mismo timing sin hablar. {{coach}} lo nota en el entrenamiento.',
     stages: ['academy', 'challengers', 'tier1'],
     activityTags: ['scrim', 'soloq'],
     requireRelations: { duo: 60 },

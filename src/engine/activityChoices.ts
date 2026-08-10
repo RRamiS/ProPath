@@ -141,8 +141,8 @@ const HANGOUT: ActivityChoice[] = [
   },
   {
     id: 'meta_talk',
-    label: 'Hablar del meta',
-    hint: '+visión · ordená el board',
+    label: 'Hablar de lo que está fuerte',
+    hint: '+lectura · ordená ideas',
     verb: 'sort',
     sortItems: ['Poke', 'Engage', 'Scaling', 'Flex'],
     effect: { stats: { gameSense: 3 }, relations: { duo: 2, rival: 1 } },
