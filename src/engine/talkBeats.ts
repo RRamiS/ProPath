@@ -5,6 +5,7 @@
 import { applyStatDelta, nextRng } from './createCareer';
 import type { InteractVerb } from './interact';
 import { upsertThread } from './memory';
+import { RIVAL_POST_CUSTOMS_HEAT, ensureRivalryHeat } from './rivalry';
 import type {
   CareerState,
   ChoiceEffect,
@@ -893,6 +894,9 @@ export function applyTalkChoice(
       lastTalkBeat: session.beatId,
       ...(acceptedCustoms ? { customsAccepted: 1 } : {}),
     });
+    if (acceptedCustoms) {
+      next = ensureRivalryHeat(next, RIVAL_POST_CUSTOMS_HEAT);
+    }
     const rival = next.npcStates.rival;
     next = {
       ...next,

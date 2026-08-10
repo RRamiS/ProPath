@@ -34,6 +34,7 @@ const VIBE: Record<CinematicPayload['vibe'], { label: string; tone: Tone }> = {
   ending: { label: 'LEGACY', tone: 'danger' },
   match: { label: 'MATCH DAY', tone: 'danger' },
   season: { label: 'FIN DE SPLIT', tone: 'gold' },
+  rivalry: { label: 'RIVALIDAD', tone: 'danger' },
 };
 
 export function CinematicOverlay() {

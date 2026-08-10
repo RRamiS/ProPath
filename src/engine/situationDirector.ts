@@ -1,6 +1,13 @@
 import { nextRng } from './rng';
 import { recentArchetypes, turnsSinceArchetype, upsertThread } from './memory';
-import { hasCustomsAccepted, rivalArchetypeForAction } from './rivalry';
+import {
+  RIVAL_CUSTOMS_HEAT,
+  RIVAL_POST_CUSTOMS_HEAT,
+  RIVAL_SHOWDOWN_HEAT,
+  ensureRivalryHeat,
+  hasCustomsAccepted,
+  rivalArchetypeForAction,
+} from './rivalry';
 import { isMidSeasonDue } from './season';
 import { SITUATION_ARCHETYPES } from './situations';
 import type {
@@ -246,15 +253,23 @@ function salience(
   const rivalIntensity = rivalry?.intensity ?? 0;
   const customsDone = hasCustomsAccepted(state);
   if (arch.id === 'rival_customs') {
-    if (rivalIntensity < 40 || customsDone) w *= 0.02;
+    if (rivalIntensity < RIVAL_CUSTOMS_HEAT || customsDone) w *= 0.02;
     else w *= 2.2;
   }
   if (arch.id === 'rival_showdown') {
-    if (rivalIntensity < 70 || !customsDone) w *= 0.02;
+    if (rivalIntensity < RIVAL_SHOWDOWN_HEAT || !customsDone) w *= 0.02;
     else if (Number(state.flags.rivalShowdownPending ?? 0) === 1) w *= 0.05;
+    else if (
+      Number(state.flags.rivalShowdownWon ?? 0) === 1 ||
+      Number(state.flags.rivalShowdownLost ?? 0) === 1
+    )
+      w *= 0.02;
     else w *= 2.8;
   }
-  if (arch.id === 'rival_probe' && rivalIntensity >= 55) w *= 0.45;
+  if (arch.id === 'rival_aftermath_win' || arch.id === 'rival_aftermath_loss') {
+    w *= 0; // solo via tryOpenRivalAftermathBeat
+  }
+  if (arch.id === 'rival_probe' && rivalIntensity >= RIVAL_SHOWDOWN_HEAT) w *= 0.45;
 
   if (state.flags.lastArchetype === arch.id) w *= 0.35;
 
@@ -381,6 +396,31 @@ export function tryOpenMidSeasonBeat(state: CareerState): CareerState | null {
   return openForcedArchetype(marked, 'mid_season_checkin');
 }
 
+/**
+ * Cierre narrativo post-showdown (W/L). Prioridad alta tras la serie personal.
+ */
+export function tryOpenRivalAftermathBeat(state: CareerState): CareerState | null {
+  if (state.endingId) return null;
+  if (!state.flags.pendingRivalAftermath) return null;
+  const won = Number(state.flags.rivalShowdownWon ?? 0) === 1;
+  const archetypeId = won ? 'rival_aftermath_win' : 'rival_aftermath_loss';
+  const marked: CareerState = {
+    ...state,
+    flags: {
+      ...state.flags,
+      pendingRivalAftermath: 0,
+    },
+    lastNotice: won
+      ? 'Showdown cerrado. El rival quiere la última palabra.'
+      : 'Caíste en el showdown. La cuenta quedó abierta.',
+    ticker: [
+      won ? 'AFTERMATH · respeto a regañadientes' : 'AFTERMATH · deuda pendiente',
+      ...state.ticker,
+    ].slice(0, 8),
+  };
+  return openForcedArchetype(marked, archetypeId);
+}
+
 const NPC_ACTION_ARCHETYPE: Record<
   Exclude<CareerState['npcStates'][RelationKey]['pendingAction'], null>,
   Partial<Record<RelationKey, string>>
@@ -413,9 +453,9 @@ export function openNpcActionSituation(
         (!candidate.venues?.length || candidate.venues.includes(state.venueId))
     );
   let arch = findArch(archetypeId);
-  // Academy aún no tiene showdown: baja a customs/probe si hace falta.
+  // Si la sede/etapa no matchea el arquetipo pedido, baja en la escalera.
   if (!arch && kind === 'rival') {
-    for (const id of ['rival_customs', 'rival_probe'] as const) {
+    for (const id of ['rival_showdown', 'rival_customs', 'rival_probe'] as const) {
       if (id === archetypeId) continue;
       arch = findArch(id);
       if (arch) break;
@@ -469,7 +509,7 @@ export function applySituationChoice(
 
     if (sit.threadKind === 'rivalry') {
       if (choiceId === 'accept_customs' || choiceId === 'challenge') {
-        delta = 18;
+        delta = 22;
         threadFlags.customsAccepted = 1;
         next = {
           ...next,
@@ -491,10 +531,22 @@ export function applySituationChoice(
             ...next.ticker,
           ].slice(0, 8),
         };
+      } else if (
+        sit.archetypeId === 'rival_aftermath_win' ||
+        sit.archetypeId === 'rival_aftermath_loss'
+      ) {
+        delta = choiceId === 'cold_silence' || choiceId === 'keep_fire' ? 8 : -10;
+        threadFlags.aftermathDone = 1;
       }
     }
 
     next = upsertThread(next, sit.threadKind, sit.actors, delta, threadFlags);
+    if (
+      sit.threadKind === 'rivalry' &&
+      (choiceId === 'accept_customs' || choiceId === 'challenge')
+    ) {
+      next = ensureRivalryHeat(next, RIVAL_POST_CUSTOMS_HEAT);
+    }
   }
 
   return { state: next, choice };

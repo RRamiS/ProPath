@@ -333,6 +333,7 @@ export function resolveMatch(
           rivalShowdownPending: 0,
           rivalShowdownWon: won ? 1 : 0,
           rivalShowdownLost: won ? 0 : 1,
+          pendingRivalAftermath: 1,
         }
       : state.flags,
     lastNotice: showdown

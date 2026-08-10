@@ -24,7 +24,10 @@ import {
   switchRole as applyRoleSwitch,
 } from '../engine';
 import { resolveSeasonOffer, type SeasonOfferId } from '../engine/season';
-import { tryOpenMidSeasonBeat } from '../engine/situationDirector';
+import {
+  tryOpenMidSeasonBeat,
+  tryOpenRivalAftermathBeat,
+} from '../engine/situationDirector';
 import {
   applyTalkChoice,
   pickTalkBeat,
@@ -62,7 +65,7 @@ export type CinematicPayload = {
   title: string;
   subtitle?: string;
   beats?: string[];
-  vibe: 'kickoff' | 'promote' | 'skill' | 'ending' | 'match' | 'season';
+  vibe: 'kickoff' | 'promote' | 'skill' | 'ending' | 'match' | 'season' | 'rivalry';
   durationMs?: number;
 };
 
@@ -464,6 +467,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const promoted = maybePromote({ ...career, phase: 'event' });
     const promo = maybePromotionCinematic(pack, career, promoted);
+
+    // Cierre del showdown antes que mid-season / fin de split.
+    const aftermath = tryOpenRivalAftermathBeat(promoted);
+    if (aftermath) {
+      const won = Number(aftermath.flags.rivalShowdownWon ?? 0) === 1;
+      set({
+        career: aftermath,
+        screen: routeAfterCareer(aftermath),
+        matchPhase: 'live',
+        cinematic: {
+          vibe: 'rivalry',
+          title: won ? 'Después del showdown' : 'La cuenta pendiente',
+          beats: [
+            won
+              ? 'El scoreboard habló. El rival todavía tiene algo que decir.'
+              : 'Perdiste la serie personal. El circuito no olvida.',
+          ],
+          durationMs: 2000,
+        },
+      });
+      return;
+    }
 
     if (promoted.weekInSeason >= promoted.maxTurns) {
       const roll = nextRng(promoted.rngSeed);
