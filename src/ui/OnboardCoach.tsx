@@ -1,5 +1,6 @@
 /**
  * Coach de primera semana: objetivo → objeto → 3 opciones → skill → mapa.
+ * Cada paso puede avanzar con la acción pedida O con "Siguiente" (anti soft-lock).
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, SKEW, space, tones, UNSKEW } from './theme';
@@ -8,8 +9,8 @@ export const ONBOARD_STEPS = [
   {
     step: 0,
     label: '1/5',
-    title: 'Tu META está arriba',
-    body: 'La barra META del HUD es tu objetivo de la semana (ej. ganar series). Cumplirla da premio. También la ves en DATA.',
+    title: 'Tu OBJETIVO está arriba',
+    body: 'La barra OBJETIVO del HUD es tu meta de la semana (ej. ganar series). Cumplirla da premio. También la ves en DATA.',
   },
   {
     step: 1,
@@ -42,13 +43,18 @@ export function OnboardCoach({
   onSkip,
   onOpenMap,
   onShowMeta,
+  onNext,
 }: {
   step: number;
   onSkip: () => void;
   onOpenMap?: () => void;
   onShowMeta?: () => void;
+  /** Avanza un paso sin hacer la acción (evita quedar trabado). */
+  onNext?: () => void;
 }) {
   const current = ONBOARD_STEPS.find((s) => s.step === step) ?? ONBOARD_STEPS[0]!;
+  const last = step >= ONBOARD_STEPS.length - 1;
+
   return (
     <View style={styles.wrap}>
       <View style={styles.edge} />
@@ -70,6 +76,16 @@ export function OnboardCoach({
       {step === 4 && onOpenMap ? (
         <Pressable onPress={onOpenMap} style={styles.cta}>
           <Text style={styles.ctaText}>ABRIR MAPA →</Text>
+        </Pressable>
+      ) : null}
+      {last && onSkip ? (
+        <Pressable onPress={onSkip} style={styles.nextGhost}>
+          <Text style={styles.nextGhostText}>Listo, ya entendí</Text>
+        </Pressable>
+      ) : null}
+      {!last && onNext ? (
+        <Pressable onPress={onNext} style={styles.nextGhost}>
+          <Text style={styles.nextGhostText}>Siguiente →</Text>
         </Pressable>
       ) : null}
       <View style={styles.dots}>
@@ -152,6 +168,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.2,
     transform: [{ skewX: UNSKEW }],
+  },
+  nextGhost: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+  },
+  nextGhostText: {
+    color: tones.gold.fg,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    letterSpacing: 0.4,
   },
   dots: { flexDirection: 'row', gap: 6, marginTop: space.xs },
   dot: {

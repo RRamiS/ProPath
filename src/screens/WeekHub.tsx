@@ -330,15 +330,22 @@ export function WeekHubScreen() {
     setSelectedId(null);
     setPendingAct(null);
     clearTalk();
-    if (!career.flags.onboardDone) {
-      setOnboardStep((s) => Math.max(s, 3));
-    }
+    // Tras completar una acción (sin skill o ya resuelto): ir al paso mapa.
+    bumpOnboard(4);
     pickActivity(slot.activity.id, variantId, variantOk);
   };
 
   const bumpOnboard = (to: number) => {
-    if (career.flags.onboardDone) return;
+    if (career.flags.onboardDone && Number(career.flags.howtoReplay) !== 1) return;
     setOnboardStep((s) => Math.max(s, to));
+  };
+
+  const advanceOnboard = () => {
+    if (career.flags.onboardDone && Number(career.flags.howtoReplay) !== 1) return;
+    setOnboardStep((s) => {
+      if (s >= 4) return s;
+      return s + 1;
+    });
   };
 
   const finishOnboard = () => {
@@ -360,10 +367,11 @@ export function WeekHubScreen() {
     const choice = activityChoicesFor(slot.activity.id, career.venueId)?.find(
       (c) => c.id === variantId
     );
-    bumpOnboard(1);
+    // Ya eligió entre las 3 opciones.
+    bumpOnboard(2);
     if (choice && needsChallenge(choice.verb)) {
       setSelectedId(null);
-      bumpOnboard(2);
+      bumpOnboard(3);
       setPendingAct({ slot, choice });
       return;
     }
@@ -374,9 +382,9 @@ export function WeekHubScreen() {
     if (!talkSession) return;
     const choice = talkSession.choices.find((c) => c.id === id);
     if (!choice) return;
-    bumpOnboard(1);
+    bumpOnboard(2);
     if (needsChallenge(choice.verb)) {
-      bumpOnboard(2);
+      bumpOnboard(3);
       setPendingTalk(choice);
       return;
     }
@@ -407,6 +415,7 @@ export function WeekHubScreen() {
               <OnboardCoach
                 step={onboardStep}
                 onSkip={finishOnboard}
+                onNext={advanceOnboard}
                 onShowMeta={() => {
                   setShowMeta(true);
                   bumpOnboard(1);
@@ -584,7 +593,8 @@ export function WeekHubScreen() {
                   onSelect={(s) => {
                     clearTalk();
                     buzzSelect();
-                    bumpOnboard(1);
+                    // Tocó un objeto → paso "elegí entre 3".
+                    bumpOnboard(2);
                     setSelectedId(s.spec.id);
                   }}
                   onNpc={(npc) => {
