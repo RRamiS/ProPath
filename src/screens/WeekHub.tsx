@@ -468,6 +468,9 @@ export function WeekHubScreen() {
                 style={styles.block}
               >
                 <Text style={styles.talkLine}>{talkSession.line}</Text>
+                {talkSession.callback ? (
+                  <Text style={styles.talkCallback}>{talkSession.callback}</Text>
+                ) : null}
                 <ChoiceBoard
                   items={talkSession.choices.map((c) => ({
                     id: c.id,
@@ -730,6 +733,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 10,
+  },
+  talkCallback: {
+    color: colors.muted,
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: -4,
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   talkDismiss: { alignSelf: 'flex-end', marginTop: 8, paddingVertical: 4 },
   talkDismissText: {

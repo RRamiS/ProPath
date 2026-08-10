@@ -96,3 +96,28 @@ export function memorySummary(state: CareerState, limit = 5): string[] {
     .reverse()
     .map((m) => `${m.archetypeId}:${m.outcome}`);
 }
+
+/** Última memoria con ese actor (para callbacks de diálogo). */
+export function lastMemoryWithActor(
+  state: CareerState,
+  kind: RelationKey
+): MemoryEntry | undefined {
+  for (let i = state.memories.length - 1; i >= 0; i--) {
+    const m = state.memories[i]!;
+    if (m.actors.includes(kind) && m.outcome.trim()) return m;
+  }
+  return undefined;
+}
+
+/** Una línea humana para UI de talk (null si no hay historial). */
+export function talkMemoryCallback(
+  state: CareerState,
+  kind: RelationKey
+): string | null {
+  const mem = lastMemoryWithActor(state, kind);
+  if (!mem) return null;
+  const name = state.roster[kind]?.name ?? kind;
+  const snip =
+    mem.outcome.length > 64 ? `${mem.outcome.slice(0, 61)}…` : mem.outcome;
+  return `${name} no olvidó: ${snip}`;
+}

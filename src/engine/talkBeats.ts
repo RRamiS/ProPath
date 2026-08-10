@@ -4,7 +4,12 @@
  */
 import { applyStatDelta, nextRng } from './createCareer';
 import type { InteractVerb } from './interact';
-import { upsertThread } from './memory';
+import {
+  pushMemory,
+  recentArchetypes,
+  talkMemoryCallback,
+  upsertThread,
+} from './memory';
 import { RIVAL_POST_CUSTOMS_HEAT, ensureRivalryHeat } from './rivalry';
 import type {
   CareerState,
@@ -42,6 +47,8 @@ export interface TalkSession {
   beatId: string;
   line: string;
   choices: TalkChoice[];
+  /** Callback de memoria con ese NPC (si hubo charla/situación previa). */
+  callback?: string;
 }
 
 const BEATS: TalkBeat[] = [
@@ -818,6 +825,9 @@ export function pickTalkBeat(
 
   const rivalHeat =
     state.activeThreads.find((t) => t.kind === 'rivalry')?.intensity ?? 0;
+  const lastBeat =
+    typeof state.flags.lastTalkBeat === 'string' ? state.flags.lastTalkBeat : '';
+  const recent = recentArchetypes(state, 8);
 
   const pool = BEATS.filter((b) => {
     if (b.kind !== kind) return false;
@@ -826,11 +836,21 @@ export function pickTalkBeat(
     return true;
   });
 
-  const weighted = pool.flatMap((b) => {
-    const w = Math.max(1, Math.round((b.weight ?? 10) * (b.egg ? 0.35 : 1)));
+  // Evitar el mismo beat seguido si hay alternativa.
+  let candidates = pool.filter((b) => b.id !== lastBeat);
+  if (candidates.length === 0) candidates = pool;
+  const fresh = candidates.filter((b) => !recent.has(b.id));
+  const pickFrom = fresh.length > 0 ? fresh : candidates;
+
+  const weighted = pickFrom.flatMap((b) => {
+    let mult = b.egg ? 0.35 : 1;
+    if (b.id === lastBeat) mult *= 0.05;
+    else if (recent.has(b.id)) mult *= 0.18;
+    const w = Math.max(1, Math.round((b.weight ?? 10) * mult));
     return Array.from({ length: w }, () => b);
   });
-  const beat = weighted[Math.floor(roll() * weighted.length)] ?? pool[0]!;
+  const beat = weighted[Math.floor(roll() * weighted.length)] ?? pickFrom[0]!;
+  const callback = talkMemoryCallback(state, kind) ?? undefined;
 
   return {
     seed,
@@ -839,6 +859,7 @@ export function pickTalkBeat(
       beatId: beat.id,
       line: beat.line.replace(/Marek/g, state.roster.coach.name),
       choices: beat.choices,
+      callback,
     },
   };
 }
@@ -865,6 +886,10 @@ export function applyTalkChoice(
   const stats = applyStatDelta(state.stats, raw);
   const relations = applyRelations(state.relations, effect.relations);
 
+  const outcome = success
+    ? choice.outcome
+    : (choice.failOutcome ?? 'No salió como querías. Quedó roce.');
+
   let next: CareerState = {
     ...state,
     stats,
@@ -876,11 +901,22 @@ export function applyTalkChoice(
       lastTalkBeat: session.beatId,
       lastTalkChoice: choiceId,
       lastTalkOk: success ? 1 : 0,
+      lastTalkKind: session.kind,
     },
-    lastNotice: success
-      ? choice.outcome
-      : (choice.failOutcome ?? 'No salió como querías. Quedó roce.'),
+    lastNotice: outcome,
   };
+
+  next = pushMemory(next, {
+    archetypeId: session.beatId,
+    instanceId: `talk_${session.beatId}_${state.turn}`,
+    actors: [session.kind],
+    choiceId,
+    turn: state.turn,
+    stage: state.stageId,
+    outcome,
+    intensity: success ? 40 : 22,
+    venueId: state.venueId,
+  });
 
   // Hablar con el rival enciende / escala el hilo de rivalidad.
   if (session.kind === 'rival') {
