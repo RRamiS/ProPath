@@ -53,7 +53,8 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 200
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

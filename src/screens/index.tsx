@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
@@ -27,6 +27,7 @@ import { MobaBackdrop } from '../ui/MobaBackdrop';
 import { CareerHud } from '../ui/CareerHud';
 import { NationBadge } from '../ui/NationBadge';
 import { ShareCard } from '../ui/ShareCard';
+import { shareViewAsImage } from '../ui/shareLegacy';
 import {
   colors,
   fonts,
@@ -538,6 +539,9 @@ export function EndingScreen() {
   const ending = pack.endings.find((e) => e.id === career?.endingId);
   const reveal = useSharedValue(0);
   const tone = TIER_TONE[ending?.tier ?? 'ok'] ?? 'accent';
+  const cardRef = useRef<View>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareHint, setShareHint] = useState('Compartí tu tarjeta de legacy');
 
   useEffect(() => {
     reveal.value = withDelay(80, withSpring(1, springs.soft));
@@ -550,6 +554,24 @@ export function EndingScreen() {
       { scale: interpolate(reveal.value, [0, 1], [0.96, 1]) },
     ],
   }));
+
+  const onShareLegacy = async () => {
+    if (!career || sharing) return;
+    setSharing(true);
+    const message = `ProPath · ${ending?.title ?? 'Legacy'} · ${career.profile.name} ${career.wins}-${career.losses}`;
+    const result = await shareViewAsImage(cardRef, {
+      dialogTitle: 'ProPath Legacy',
+      message,
+    });
+    setSharing(false);
+    if (result === 'unavailable') {
+      setShareHint('Sharing no disponible acá — sacá screenshot a la tarjeta');
+    } else if (result === 'failed') {
+      setShareHint('No se pudo compartir. Probá de nuevo.');
+    } else {
+      setShareHint('Listo — mandala a donde quieras');
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -579,11 +601,21 @@ export function EndingScreen() {
               </Text>
             ) : null}
 
-            {career ? <ShareCard career={career} pack={pack} ending={ending} /> : null}
-            <Text style={styles.micro}>Sacale screenshot a la tarjeta para compartirla</Text>
+            {career ? (
+              <View ref={cardRef} collapsable={false}>
+                <ShareCard career={career} pack={pack} ending={ending} />
+              </View>
+            ) : null}
+            <Text style={styles.micro}>{shareHint}</Text>
 
             <View style={styles.endingCta}>
-              <Button label="Nueva carrera" onPress={reset} />
+              <Button
+                label={sharing ? 'Preparando…' : 'Compartir legacy'}
+                onPress={() => void onShareLegacy()}
+                disabled={sharing || !career}
+                tone="gold"
+              />
+              <Button label="Nueva carrera" onPress={reset} variant="ghost" />
               <Button label="Menú" variant="ghost" onPress={() => void goHome()} />
             </View>
           </Animated.View>
